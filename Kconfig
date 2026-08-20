@@ -1,0 +1,54 @@
+menu "K-FSW communications"
+
+config KFSW_CSP
+	bool "K-FSW Cubesat Space Protocol"
+	select LIBCSP
+	select CSP_USE_RTABLE
+	help
+	  Enable the project-owned libcsp initialization and router lifecycle.
+
+if KFSW_CSP
+
+config KFSW_CSP_ADDRESS
+	int "Local CSP node address"
+	range 1 16383
+	default 1
+	help
+	  CSP version 2 node address assigned to this K-FSW image.
+
+config KFSW_CSP_HOSTNAME
+	string "CSP hostname"
+	default "kfsw"
+
+config KFSW_CSP_MODEL
+	string "CSP model"
+	default "K-FSW"
+
+config KFSW_CSP_REVISION
+	string "CSP revision"
+	default "kfsw-dev"
+
+config KFSW_CSP_KISS_UART
+	bool "CSP KISS interface over a Zephyr UART"
+	depends on SERIAL
+	default y if BOARD_NATIVE_SIM
+	help
+	  Register libcsp's maintained USART/KISS interface. This is used only
+	  by the Linux development profiles until a flight transport is added.
+
+config KFSW_CSP_KISS_UART_DEVICE
+	string "Zephyr UART device name for CSP KISS"
+	depends on KFSW_CSP_KISS_UART
+	default "uart_1"
+
+config KFSW_CSP_ROUTER_STACK_SIZE
+	int "CSP router thread stack size"
+	default 2048
+
+config KFSW_CSP_ROUTER_PRIORITY
+	int "CSP router thread priority"
+	default 0
+
+endif # KFSW_CSP
+
+endmenu

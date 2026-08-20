@@ -1,0 +1,8 @@
+name: kfsw-comms
+
+build:
+  cmake: .
+  kconfig: Kconfig
+  depends:
+    - kfsw-platform
+    - libcsp
