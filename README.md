@@ -6,8 +6,17 @@ routing lifecycle used by the application. Its first implementation integrates
 
 The composition repository pins libcsp to commit
 `097a039701c85e4ceb98e91f380810662e23878a` and supplies the target-specific
-Kconfig values. The current host transport is libcsp's Zephyr USART driver with
-KISS framing. CAN and flight routing tables are intentionally deferred.
+Kconfig values. Native PTY profiles use libcsp's Zephyr USART driver. Physical
+UART profiles use Zephyr interrupt-driven receive with libcsp's maintained KISS
+decoder and transmitter over a dedicated 115200 8N1 UART. K-FSW configures the
+Zephyr device, registers the KISS interface, owns its default route, and exposes
+small status and end-to-end test APIs. CAN and flight routing tables are
+intentionally deferred.
+
+libcsp remains a standalone west project so the composition workspace can pin
+one exact upstream revision without vendoring or nesting repositories.
+`kfsw-comms/zephyr/module.yml` declares the module dependency, while this
+repository owns how K-FSW configures libcsp and exposes its transport APIs.
 
 ## Packet ownership
 

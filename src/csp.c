@@ -2,10 +2,13 @@
 
 #include <csp/csp.h>
 #include <csp/csp_id.h>
-#include <csp/drivers/usart.h>
 #include <csp/interfaces/csp_if_lo.h>
 
 #include <kfsw/comms/csp.h>
+
+#if CONFIG_KFSW_CSP_KISS_UART
+#include "uart_internal.h"
+#endif
 
 static bool initialized;
 static bool router_running;
@@ -43,17 +46,8 @@ int kfsw_csp_init(void)
 
 #if CONFIG_KFSW_CSP_KISS_UART
 	csp_iface_t *host_interface = NULL;
-	const csp_usart_conf_t usart_config = {
-		.device = CONFIG_KFSW_CSP_KISS_UART_DEVICE,
-		.baudrate = 115200,
-		.databits = 8,
-		.stopbits = 1,
-		.paritysetting = 0,
-	};
 
-	result = csp_usart_open_and_add_kiss_interface(&usart_config, "KISS",
-						       CONFIG_KFSW_CSP_ADDRESS,
-						       &host_interface);
+	result = kfsw_uart_open(CONFIG_KFSW_CSP_ADDRESS, &host_interface);
 	if (result != CSP_ERR_NONE) {
 		return result;
 	}

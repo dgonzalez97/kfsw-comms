@@ -33,13 +33,52 @@ config KFSW_CSP_KISS_UART
 	depends on SERIAL
 	default y if BOARD_NATIVE_SIM
 	help
-	  Register libcsp's maintained USART/KISS interface. This is used only
-	  by the Linux development profiles until a flight transport is added.
+	  Register libcsp's maintained USART/KISS interface over a dedicated
+	  Zephyr UART selected by the composition profile.
 
 config KFSW_CSP_KISS_UART_DEVICE
 	string "Zephyr UART device name for CSP KISS"
 	depends on KFSW_CSP_KISS_UART
 	default "uart_1"
+	help
+	  Exact Zephyr device binding used by the K-FSW transport. Native PTY
+	  profiles pass it to libcsp's maintained Zephyr USART/KISS driver.
+
+config KFSW_CSP_UART_INTERRUPT_DRIVEN
+	bool "Use interrupt-driven CSP UART receive"
+	depends on KFSW_CSP_KISS_UART && UART_INTERRUPT_DRIVEN
+	help
+	  Feed received UART bytes from Zephyr's interrupt-driven API into
+	  libcsp's maintained KISS decoder. Physical UART profiles should enable
+	  this to avoid overruns in libcsp's polling Zephyr USART backend. Native
+	  PTY profiles continue to use libcsp's USART integration directly.
+
+config KFSW_CSP_UART_NAME
+	string "Human-readable CSP UART name"
+	depends on KFSW_CSP_KISS_UART
+	default "uart_1"
+	help
+	  Stable peripheral name used by diagnostics, such as usart3. The
+	  separate device setting remains the exact Zephyr binding name.
+
+config KFSW_CSP_UART_BAUDRATE
+	int "CSP KISS UART baud rate"
+	depends on KFSW_CSP_KISS_UART
+	range 9600 3000000
+	default 115200
+	help
+	  Dedicated CSP UART speed in bits per second. K-FSW configures the
+	  Zephyr UART for 8 data bits, no parity, one stop bit, and no hardware
+	  flow control before libcsp takes ownership.
+
+config KFSW_CSP_UART_PEER_ADDRESS
+	int "CSP node on the other end of the UART link"
+	depends on KFSW_CSP_KISS_UART
+	range 1 16383
+	default 1
+	help
+	  Peer used by the permanent end-to-end UART transport test. Profiles
+	  must set this independently from the local CSP node address.
 
 config KFSW_CSP_ROUTER_STACK_SIZE
 	int "CSP router thread stack size"

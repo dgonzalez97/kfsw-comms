@@ -3,9 +3,15 @@ if(CONFIG_KFSW_CSP)
         message(FATAL_ERROR "libcsp was not discovered as a Zephyr module")
     endif()
 
-    add_library(kfsw_comms STATIC
+    set(kfsw_comms_sources
         src/csp.c
     )
+
+    if(CONFIG_KFSW_CSP_KISS_UART)
+        list(APPEND kfsw_comms_sources src/uart.c)
+    endif()
+
+    add_library(kfsw_comms STATIC ${kfsw_comms_sources})
 
     target_include_directories(kfsw_comms
         PUBLIC
