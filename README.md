@@ -14,7 +14,9 @@ small status and end-to-end test APIs. CAN and flight routing tables are
 intentionally deferred.
 
 libcsp remains a standalone west project so the composition workspace can pin
-one exact upstream revision without vendoring or nesting repositories.
+one exact upstream revision without vendoring its source. Its checkout lives at
+`kfsw-comms/third_party/libcsp`, making the dependency's ownership visible in
+the workspace layout while preserving its independent Git history.
 `kfsw-comms/zephyr/module.yml` declares the module dependency, while this
 repository owns how K-FSW configures libcsp and exposes its transport APIs.
 
