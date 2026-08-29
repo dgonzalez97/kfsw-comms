@@ -2,7 +2,9 @@
 #include <string.h>
 
 #include <zephyr/device.h>
+#include <zephyr/devicetree.h>
 #include <zephyr/drivers/uart.h>
+#include <zephyr/sys/util.h>
 
 #include <csp/csp.h>
 #include <csp/csp_rtable.h>
@@ -16,8 +18,23 @@
 
 #define KFSW_UART_TEST_PAYLOAD_SIZE 128U
 #define KFSW_UART_IRQ_RX_CHUNK_SIZE 32U
+#define KFSW_CSP_UART_NODE DT_CHOSEN(kfsw_csp_uart)
+#define KFSW_CSP_UART_BAUDRATE DT_PROP(KFSW_CSP_UART_NODE, current_speed)
+#define KFSW_CSP_UART_PARITY DT_ENUM_IDX(KFSW_CSP_UART_NODE, parity)
+#define KFSW_CSP_UART_STOP_BITS DT_ENUM_IDX(KFSW_CSP_UART_NODE, stop_bits)
+#define KFSW_CSP_UART_DATA_BITS (DT_PROP(KFSW_CSP_UART_NODE, data_bits) - 5)
+#define KFSW_CSP_UART_FLOW_CONTROL                                                                 \
+	(DT_PROP(KFSW_CSP_UART_NODE, hw_flow_control) ? UART_CFG_FLOW_CTRL_RTS_CTS                 \
+						      : UART_CFG_FLOW_CTRL_NONE)
 
-static const struct device *uart_device;
+BUILD_ASSERT(DT_HAS_CHOSEN(kfsw_csp_uart),
+	     "KFSW_CSP_KISS_UART requires a kfsw,csp-uart chosen node");
+BUILD_ASSERT(DT_NODE_HAS_STATUS(KFSW_CSP_UART_NODE, okay),
+	     "the chosen K-FSW CSP UART must be enabled");
+BUILD_ASSERT(DT_NODE_HAS_PROP(KFSW_CSP_UART_NODE, current_speed),
+	     "the chosen K-FSW CSP UART must define current-speed");
+
+static const struct device *const uart_device = DEVICE_DT_GET(KFSW_CSP_UART_NODE);
 static csp_iface_t *uart_interface;
 
 #if CONFIG_KFSW_CSP_UART_INTERRUPT_DRIVEN
@@ -30,8 +47,7 @@ struct kfsw_uart_interrupt_context {
 
 static struct kfsw_uart_interrupt_context interrupt_context;
 
-static int kfsw_uart_interrupt_tx(void *driver_data, const uint8_t *data,
-				  size_t data_length)
+static int kfsw_uart_interrupt_tx(void *driver_data, const uint8_t *data, size_t data_length)
 {
 	struct kfsw_uart_interrupt_context *context = driver_data;
 
@@ -42,8 +58,7 @@ static int kfsw_uart_interrupt_tx(void *driver_data, const uint8_t *data,
 	return CSP_ERR_NONE;
 }
 
-static void kfsw_uart_interrupt_rx(const struct device *device,
-				   void *user_data)
+static void kfsw_uart_interrupt_rx(const struct device *device, void *user_data)
 {
 	struct kfsw_uart_interrupt_context *context = user_data;
 	uint8_t data[KFSW_UART_IRQ_RX_CHUNK_SIZE];
@@ -67,30 +82,26 @@ static void kfsw_uart_interrupt_rx(const struct device *device,
 	do {
 		received = uart_fifo_read(device, data, sizeof(data));
 		if (received > 0) {
-			csp_kiss_rx(&context->interface, data, (size_t)received,
-				    &task_woken);
+			csp_kiss_rx(&context->interface, data, (size_t)received, &task_woken);
 		}
 	} while (received > 0);
 }
 
-static int kfsw_uart_open_interrupt(uint16_t address,
-				    csp_iface_t **return_interface)
+static int kfsw_uart_open_interrupt(uint16_t address, csp_iface_t **return_interface)
 {
 	int result;
 
 	memset(&interrupt_context, 0, sizeof(interrupt_context));
-	strncpy(interrupt_context.name, "KISS",
-		sizeof(interrupt_context.name) - 1);
+	strncpy(interrupt_context.name, "KISS", sizeof(interrupt_context.name) - 1);
 	interrupt_context.interface.name = interrupt_context.name;
 	interrupt_context.interface.addr = address;
 	interrupt_context.interface.driver_data = &interrupt_context;
-	interrupt_context.interface.interface_data =
-		&interrupt_context.kiss_data;
+	interrupt_context.interface.interface_data = &interrupt_context.kiss_data;
 	interrupt_context.kiss_data.tx_func = kfsw_uart_interrupt_tx;
 	interrupt_context.device = uart_device;
 
-	result = uart_irq_callback_user_data_set(
-		uart_device, kfsw_uart_interrupt_rx, &interrupt_context);
+	result = uart_irq_callback_user_data_set(uart_device, kfsw_uart_interrupt_rx,
+						 &interrupt_context);
 	if (result != 0) {
 		return CSP_ERR_DRIVER;
 	}
@@ -115,16 +126,15 @@ static int kfsw_uart_open_interrupt(uint16_t address,
 static int kfsw_uart_configure(void)
 {
 	const struct uart_config config = {
-		.baudrate = CONFIG_KFSW_CSP_UART_BAUDRATE,
-		.parity = UART_CFG_PARITY_NONE,
-		.stop_bits = UART_CFG_STOP_BITS_1,
-		.data_bits = UART_CFG_DATA_BITS_8,
-		.flow_ctrl = UART_CFG_FLOW_CTRL_NONE,
+		.baudrate = KFSW_CSP_UART_BAUDRATE,
+		.parity = KFSW_CSP_UART_PARITY,
+		.stop_bits = KFSW_CSP_UART_STOP_BITS,
+		.data_bits = KFSW_CSP_UART_DATA_BITS,
+		.flow_ctrl = KFSW_CSP_UART_FLOW_CONTROL,
 	};
 	int result;
 
-	uart_device = device_get_binding(CONFIG_KFSW_CSP_KISS_UART_DEVICE);
-	if (uart_device == NULL || !device_is_ready(uart_device)) {
+	if (!device_is_ready(uart_device)) {
 		return CSP_ERR_DRIVER;
 	}
 
@@ -145,11 +155,11 @@ int kfsw_uart_open(uint16_t address, csp_iface_t **return_interface)
 {
 #if !CONFIG_KFSW_CSP_UART_INTERRUPT_DRIVEN
 	const csp_usart_conf_t usart_config = {
-		.device = CONFIG_KFSW_CSP_KISS_UART_DEVICE,
-		.baudrate = CONFIG_KFSW_CSP_UART_BAUDRATE,
-		.databits = 8,
-		.stopbits = 1,
-		.paritysetting = 0,
+		.device = DEVICE_DT_NAME(KFSW_CSP_UART_NODE),
+		.baudrate = KFSW_CSP_UART_BAUDRATE,
+		.databits = DT_PROP(KFSW_CSP_UART_NODE, data_bits),
+		.stopbits = KFSW_CSP_UART_STOP_BITS == UART_CFG_STOP_BITS_2 ? 2 : 1,
+		.paritysetting = KFSW_CSP_UART_PARITY,
 	};
 #endif
 	int result;
@@ -169,8 +179,8 @@ int kfsw_uart_open(uint16_t address, csp_iface_t **return_interface)
 #if CONFIG_KFSW_CSP_UART_INTERRUPT_DRIVEN
 	return kfsw_uart_open_interrupt(address, return_interface);
 #else
-	result = csp_usart_open_and_add_kiss_interface(
-		&usart_config, "KISS", address, &uart_interface);
+	result = csp_usart_open_and_add_kiss_interface(&usart_config, "KISS", address,
+						       &uart_interface);
 	if (result != CSP_ERR_NONE) {
 		uart_interface = NULL;
 		return result;
@@ -191,13 +201,11 @@ void kfsw_uart_get_info(struct kfsw_uart_info *info)
 	}
 
 	memset(info, 0, sizeof(*info));
-	info->device_name = CONFIG_KFSW_CSP_UART_NAME;
-	info->baudrate = CONFIG_KFSW_CSP_UART_BAUDRATE;
-	info->ready = uart_device != NULL && device_is_ready(uart_device) &&
-		      uart_interface != NULL;
+	info->device_name = uart_device->name;
+	info->baudrate = KFSW_CSP_UART_BAUDRATE;
+	info->ready = device_is_ready(uart_device) && uart_interface != NULL;
 	info->interface_started = uart_interface != NULL;
-	info->interface_name =
-		uart_interface != NULL ? uart_interface->name : "unavailable";
+	info->interface_name = uart_interface != NULL ? uart_interface->name : "unavailable";
 	info->node = CONFIG_KFSW_CSP_ADDRESS;
 	info->peer = CONFIG_KFSW_CSP_UART_PEER_ADDRESS;
 
@@ -211,8 +219,7 @@ void kfsw_uart_get_info(struct kfsw_uart_info *info)
 	}
 }
 
-int kfsw_uart_test(uint32_t timeout_ms,
-		   struct kfsw_uart_test_result *test_result)
+int kfsw_uart_test(uint32_t timeout_ms, struct kfsw_uart_test_result *test_result)
 {
 	csp_route_t *route;
 	uint32_t round_trip_ms;
@@ -228,7 +235,7 @@ int kfsw_uart_test(uint32_t timeout_ms,
 	}
 
 	result = kfsw_csp_ping(CONFIG_KFSW_CSP_UART_PEER_ADDRESS, timeout_ms,
-				KFSW_UART_TEST_PAYLOAD_SIZE, &round_trip_ms);
+			       KFSW_UART_TEST_PAYLOAD_SIZE, &round_trip_ms);
 	if (result != CSP_ERR_NONE) {
 		return result;
 	}
