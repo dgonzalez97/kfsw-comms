@@ -39,11 +39,14 @@ struct kfsw_csp_route_info {
 	bool has_via;
 };
 
-typedef bool (*kfsw_csp_interface_visitor_t)(
-	const struct kfsw_csp_interface_info *interface_info, void *context);
+typedef bool (*kfsw_csp_interface_visitor_t)(const struct kfsw_csp_interface_info *interface_info,
+					     void *context);
 
-typedef bool (*kfsw_csp_route_visitor_t)(
-	const struct kfsw_csp_route_info *route_info, void *context);
+typedef bool (*kfsw_csp_route_visitor_t)(const struct kfsw_csp_route_info *route_info,
+					 void *context);
+
+/** Maximum route-table string length accepted by the pinned libcsp parser. */
+#define KFSW_CSP_ROUTE_TABLE_MAX_LENGTH 99U
 
 /** Initialize libcsp, the configured interfaces, and static routes once. */
 int kfsw_csp_init(void);
@@ -55,15 +58,21 @@ int kfsw_csp_start(void);
 void kfsw_csp_get_info(struct kfsw_csp_info *info);
 
 /** Visit a snapshot of each registered libcsp interface. */
-void kfsw_csp_visit_interfaces(kfsw_csp_interface_visitor_t visitor,
-			       void *context);
+void kfsw_csp_visit_interfaces(kfsw_csp_interface_visitor_t visitor, void *context);
 
 /** Visit a snapshot of each configured libcsp static route. */
 void kfsw_csp_visit_routes(kfsw_csp_route_visitor_t visitor, void *context);
 
+/**
+ * Validate a complete libcsp-native route table without changing live routes.
+ *
+ * Interfaces referenced by name must already be registered. On success,
+ * entry_count receives the number of parsed entries when it is non-NULL.
+ */
+int kfsw_csp_route_table_check(const char *route_table, size_t *entry_count);
+
 /** Send a standard CSP ping using CRC32 and return its round-trip time. */
-int kfsw_csp_ping(uint16_t node, uint32_t timeout_ms, size_t payload_size,
-		  uint32_t *round_trip_ms);
+int kfsw_csp_ping(uint16_t node, uint32_t timeout_ms, size_t payload_size, uint32_t *round_trip_ms);
 
 #ifdef __cplusplus
 }

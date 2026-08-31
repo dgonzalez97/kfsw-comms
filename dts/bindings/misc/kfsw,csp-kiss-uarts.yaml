@@ -1,0 +1,26 @@
+description: K-FSW CSP KISS interfaces backed by Zephyr UART devices
+
+compatible: "kfsw,csp-kiss-uarts"
+
+child-binding:
+  description: One independently named CSP KISS/UART interface
+
+  properties:
+    uart:
+      type: phandle
+      required: true
+      description: Zephyr UART device used by this KISS interface
+
+    interface-name:
+      type: string
+      required: true
+      description: Unique libcsp interface name (one to nine route-safe characters)
+
+    address:
+      type: int
+      description: CSP address owned by this interface; defaults to KFSW_CSP_ADDRESS
+
+    prefix-length:
+      type: int
+      default: 0
+      description: CSP v2 subnet prefix length in the range 0 through 14

@@ -1,7 +1,11 @@
 #include <zephyr/kernel.h>
 
+#include <string.h>
+
 #include <csp/csp.h>
 #include <csp/csp_id.h>
+#include <csp/csp_iflist.h>
+#include <csp/csp_rtable.h>
 #include <csp/interfaces/csp_if_lo.h>
 
 #include <kfsw/comms/csp.h>
@@ -12,6 +16,69 @@
 
 static bool initialized;
 static bool router_running;
+
+static int check_route_table(const char *route_table, size_t *entry_count)
+{
+	int entries;
+
+	if (route_table == NULL || strnlen(route_table, KFSW_CSP_ROUTE_TABLE_MAX_LENGTH + 1U) >
+					   KFSW_CSP_ROUTE_TABLE_MAX_LENGTH) {
+		return CSP_ERR_INVAL;
+	}
+
+	entries = csp_rtable_check(route_table);
+	if (entries < 0) {
+		return entries;
+	}
+	/*
+	 * This pinned CIDR implementation advances and then clamps its insertion
+	 * index, so one declared slot is not safely iterable. Reject that boundary
+	 * before csp_rtable_load() can silently hide the last route.
+	 */
+	if (entries >= CONFIG_CSP_RTABLE_SIZE) {
+		return CSP_ERR_NOMEM;
+	}
+
+	if (entry_count != NULL) {
+		*entry_count = (size_t)entries;
+	}
+	return CSP_ERR_NONE;
+}
+
+static int configure_routes(void)
+{
+	const char *const route_table = CONFIG_KFSW_CSP_ROUTE_TABLE;
+
+	if (route_table[0] != '\0') {
+		size_t expected_entries;
+		int result = check_route_table(route_table, &expected_entries);
+
+		if (result != CSP_ERR_NONE || expected_entries == 0U) {
+			return result != CSP_ERR_NONE ? result : CSP_ERR_INVAL;
+		}
+
+		csp_rtable_clear();
+		result = csp_rtable_load(route_table);
+		if (result < 0 || (size_t)result != expected_entries) {
+			/* Startup must never expose a partially loaded static table. */
+			csp_rtable_clear();
+			return result < 0 ? result : CSP_ERR_INVAL;
+		}
+		return CSP_ERR_NONE;
+	}
+
+#if CONFIG_KFSW_CSP_KISS_UART
+	if (kfsw_uart_count() != 1U) {
+		/* Selecting the first link implicitly is unsafe with multiple links. */
+		return CSP_ERR_INVAL;
+	}
+
+	return csp_rtable_set(0, 0, csp_iflist_get_by_name(kfsw_uart_first_interface_name()),
+			      CSP_NO_VIA_ADDRESS);
+#else
+	return CSP_ERR_NONE;
+#endif
+}
 
 static void kfsw_csp_router(void *arg1, void *arg2, void *arg3)
 {
@@ -24,9 +91,8 @@ static void kfsw_csp_router(void *arg1, void *arg2, void *arg3)
 	}
 }
 
-K_THREAD_DEFINE(kfsw_csp_router_thread, CONFIG_KFSW_CSP_ROUTER_STACK_SIZE,
-		kfsw_csp_router, NULL, NULL, NULL,
-		CONFIG_KFSW_CSP_ROUTER_PRIORITY, 0, SYS_FOREVER_MS);
+K_THREAD_DEFINE(kfsw_csp_router_thread, CONFIG_KFSW_CSP_ROUTER_STACK_SIZE, kfsw_csp_router, NULL,
+		NULL, NULL, CONFIG_KFSW_CSP_ROUTER_PRIORITY, 0, SYS_FOREVER_MS);
 
 int kfsw_csp_init(void)
 {
@@ -45,19 +111,16 @@ int kfsw_csp_init(void)
 	csp_if_lo.addr = CONFIG_KFSW_CSP_ADDRESS;
 
 #if CONFIG_KFSW_CSP_KISS_UART
-	csp_iface_t *host_interface = NULL;
-
-	result = kfsw_uart_open(CONFIG_KFSW_CSP_ADDRESS, &host_interface);
-	if (result != CSP_ERR_NONE) {
-		return result;
-	}
-
-	/* Route every non-local destination directly over the host link. */
-	result = csp_rtable_set(0, 0, host_interface, CSP_NO_VIA_ADDRESS);
+	result = kfsw_uart_open_all();
 	if (result != CSP_ERR_NONE) {
 		return result;
 	}
 #endif
+
+	result = configure_routes();
+	if (result != CSP_ERR_NONE) {
+		return result;
+	}
 
 	/* Expose only libcsp's standard ping service in this first increment. */
 	result = csp_bind_callback(csp_service_handler, CSP_PING);
@@ -99,8 +162,7 @@ void kfsw_csp_get_info(struct kfsw_csp_info *info)
 	info->free_buffers = initialized ? csp_buffer_remaining() : 0;
 }
 
-void kfsw_csp_visit_interfaces(kfsw_csp_interface_visitor_t visitor,
-			       void *context)
+void kfsw_csp_visit_interfaces(kfsw_csp_interface_visitor_t visitor, void *context)
 {
 	csp_iface_t *interface;
 
@@ -108,8 +170,7 @@ void kfsw_csp_visit_interfaces(kfsw_csp_interface_visitor_t visitor,
 		return;
 	}
 
-	for (interface = csp_iflist_get(); interface != NULL;
-	     interface = interface->next) {
+	for (interface = csp_iflist_get(); interface != NULL; interface = interface->next) {
 		const struct kfsw_csp_interface_info info = {
 			.name = interface->name,
 			.address = interface->addr,
@@ -150,8 +211,7 @@ static bool visit_route(void *context, csp_route_t *route)
 		.has_via = route->via != CSP_NO_VIA_ADDRESS,
 	};
 
-	visitor_context->keep_visiting =
-		visitor_context->visitor(&info, visitor_context->context);
+	visitor_context->keep_visiting = visitor_context->visitor(&info, visitor_context->context);
 	return visitor_context->keep_visiting;
 }
 
@@ -170,8 +230,16 @@ void kfsw_csp_visit_routes(kfsw_csp_route_visitor_t visitor, void *context)
 	csp_rtable_iterate(visit_route, &visitor_context);
 }
 
-int kfsw_csp_ping(uint16_t node, uint32_t timeout_ms, size_t payload_size,
-		  uint32_t *round_trip_ms)
+int kfsw_csp_route_table_check(const char *route_table, size_t *entry_count)
+{
+	if (!initialized) {
+		return CSP_ERR_INVAL;
+	}
+
+	return check_route_table(route_table, entry_count);
+}
+
+int kfsw_csp_ping(uint16_t node, uint32_t timeout_ms, size_t payload_size, uint32_t *round_trip_ms)
 {
 	const unsigned int host_bits = csp_id_get_host_bits();
 	int elapsed_ms;
@@ -182,8 +250,7 @@ int kfsw_csp_ping(uint16_t node, uint32_t timeout_ms, size_t payload_size,
 	}
 
 	*round_trip_ms = 0;
-	elapsed_ms = csp_ping(node, timeout_ms, (unsigned int)payload_size,
-			      CSP_O_CRC32);
+	elapsed_ms = csp_ping(node, timeout_ms, (unsigned int)payload_size, CSP_O_CRC32);
 	if (elapsed_ms < 0) {
 		return CSP_ERR_TIMEDOUT;
 	}

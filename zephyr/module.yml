@@ -3,6 +3,8 @@ name: kfsw-comms
 build:
   cmake: .
   kconfig: Kconfig
+  settings:
+    dts_root: .
   depends:
     - kfsw-platform
     - libcsp
