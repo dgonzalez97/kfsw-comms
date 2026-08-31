@@ -1,0 +1,2 @@
+# K-FSW module-local devicetree vendor prefixes.
+kfsw	K Flight Software

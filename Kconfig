@@ -28,13 +28,26 @@ config KFSW_CSP_REVISION
 	string "CSP revision"
 	default "kfsw-dev"
 
+config KFSW_CSP_ROUTE_TABLE
+	string "Static CSP route table"
+	default ""
+	help
+	  Optional libcsp-native route table loaded after all interfaces are
+	  registered. The format is a comma-separated list of
+	  "destination[/prefix-length] interface [via]" entries. An empty value
+	  preserves the legacy direct 0/0 route through the first KISS/UART
+	  interface. Multi-interface compositions must provide an explicit table.
+	  The pinned libcsp parser accepts at most 99 characters.
+
 config KFSW_CSP_KISS_UART
 	bool "CSP KISS interface over a Zephyr UART"
 	depends on SERIAL
 	help
-	  Register libcsp's maintained USART/KISS interface over a dedicated
-	  Zephyr UART selected by the application's kfsw,csp-uart devicetree
-	  chosen property.
+	  Register libcsp's maintained KISS interface over one or more dedicated
+	  Zephyr UARTs. Existing compositions may select one UART with the
+	  kfsw,csp-uart chosen property. Multi-interface compositions use children
+	  of a kfsw,csp-kiss-uarts devicetree node; each child supplies a UART,
+	  unique interface name, and optional interface address/prefix length.
 
 config KFSW_CSP_UART_INTERRUPT_DRIVEN
 	bool "Use interrupt-driven CSP UART receive"
