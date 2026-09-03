@@ -5,6 +5,7 @@
 #include <csp/csp.h>
 #include <csp/csp_id.h>
 #include <csp/csp_iflist.h>
+#include <csp/csp_interface.h>
 #include <csp/csp_rtable.h>
 #include <csp/interfaces/csp_if_lo.h>
 
@@ -16,6 +17,58 @@
 
 static bool initialized;
 static bool router_running;
+
+/*
+ * Self-addressed traffic.
+ *
+ * libcsp's built-in loopback is taken in csp_send_direct() before the outgoing
+ * source address is applied, so a packet a node sends to itself arrives with
+ * source 0 and the reply is addressed to node 0. Carrying this node's address
+ * on an ordinary interface instead puts self-addressed traffic through the
+ * normal send path, which applies the source address like any other transmit.
+ *
+ * The interface subnet search transmits on every interface whose subnet
+ * matches, so this can only be done when no other interface already covers this
+ * node's address. A node that reaches itself through one of its own link
+ * addresses keeps libcsp's loopback and its previous behaviour.
+ */
+static int self_interface_tx(csp_iface_t *iface, uint16_t via, csp_packet_t *packet, int from_me)
+{
+	ARG_UNUSED(via);
+	ARG_UNUSED(from_me);
+
+	/* Hand the packet back to the router, which delivers it locally. */
+	csp_qfifo_write(packet, iface, NULL);
+	return CSP_ERR_NONE;
+}
+
+static csp_iface_t self_interface = {
+	.name = "SELF",
+	.nexthop = self_interface_tx,
+	.addr = CONFIG_KFSW_CSP_ADDRESS,
+	.is_default = 0,
+};
+
+static bool address_covered_by_another_interface(void)
+{
+	return csp_iflist_get_by_subnet(CONFIG_KFSW_CSP_ADDRESS, NULL) != NULL;
+}
+
+static void configure_self_interface(void)
+{
+	if (address_covered_by_another_interface()) {
+		/*
+		 * Another interface already carries this address. Leave the
+		 * built-in loopback owning it rather than transmitting a copy
+		 * on that interface as well.
+		 */
+		csp_if_lo.addr = CONFIG_KFSW_CSP_ADDRESS;
+		return;
+	}
+
+	self_interface.netmask = csp_id_get_host_bits();
+	csp_iflist_add(&self_interface);
+}
 
 static int check_route_table(const char *route_table, size_t *entry_count)
 {
@@ -107,15 +160,14 @@ int kfsw_csp_init(void)
 	csp_conf.revision = CONFIG_KFSW_CSP_REVISION;
 	csp_init();
 
-	/* libcsp creates LOOP during csp_init(); give it this node's address. */
-	csp_if_lo.addr = CONFIG_KFSW_CSP_ADDRESS;
-
 #if CONFIG_KFSW_CSP_KISS_UART
 	result = kfsw_uart_open_all();
 	if (result != CSP_ERR_NONE) {
 		return result;
 	}
 #endif
+
+	configure_self_interface();
 
 	result = configure_routes();
 	if (result != CSP_ERR_NONE) {
