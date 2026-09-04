@@ -20,55 +20,21 @@ static bool initialized;
 static bool router_running;
 
 /*
- * Self-addressed traffic.
+ * Self-addressed traffic goes through libcsp's own loopback, which is given
+ * this node's address. That is how a GomSpace node does it, and it keeps the
+ * mechanism in one place instead of adding a second interface that does the
+ * same job.
  *
- * libcsp's built-in loopback is taken in csp_send_direct() before the outgoing
- * source address is applied, so a packet a node sends to itself arrives with
- * source 0 and the reply is addressed to node 0. Carrying this node's address
- * on an ordinary interface instead puts self-addressed traffic through the
- * normal send path, which applies the source address like any other transmit.
+ * A packet a node sends to itself is short-circuited to the loopback before the
+ * routing table is consulted, so this cannot conflict with an interface that
+ * also covers the address.
  *
- * The interface subnet search transmits on every interface whose subnet
- * matches, so this can only be done when no other interface already covers this
- * node's address. A node that reaches itself through one of its own link
- * addresses keeps libcsp's loopback and its previous behaviour.
+ * The shell answers "who am I" and "am I alive" locally rather than over the
+ * network, so neither depends on a self-addressed round trip.
  */
-static int self_interface_tx(csp_iface_t *iface, uint16_t via, csp_packet_t *packet, int from_me)
+static void configure_loopback_address(void)
 {
-	ARG_UNUSED(via);
-	ARG_UNUSED(from_me);
-
-	/* Hand the packet back to the router, which delivers it locally. */
-	csp_qfifo_write(packet, iface, NULL);
-	return CSP_ERR_NONE;
-}
-
-static csp_iface_t self_interface = {
-	.name = "SELF",
-	.nexthop = self_interface_tx,
-	.addr = CONFIG_KFSW_CSP_ADDRESS,
-	.is_default = 0,
-};
-
-static bool address_covered_by_another_interface(void)
-{
-	return csp_iflist_get_by_subnet(CONFIG_KFSW_CSP_ADDRESS, NULL) != NULL;
-}
-
-static void configure_self_interface(void)
-{
-	if (address_covered_by_another_interface()) {
-		/*
-		 * Another interface already carries this address. Leave the
-		 * built-in loopback owning it rather than transmitting a copy
-		 * on that interface as well.
-		 */
-		csp_if_lo.addr = CONFIG_KFSW_CSP_ADDRESS;
-		return;
-	}
-
-	self_interface.netmask = csp_id_get_host_bits();
-	csp_iflist_add(&self_interface);
+	csp_if_lo.addr = CONFIG_KFSW_CSP_ADDRESS;
 }
 
 static int check_route_table(const char *route_table, size_t *entry_count)
@@ -168,7 +134,7 @@ int kfsw_csp_init(void)
 	}
 #endif
 
-	configure_self_interface();
+	configure_loopback_address();
 
 	result = configure_routes();
 	if (result != CSP_ERR_NONE) {
