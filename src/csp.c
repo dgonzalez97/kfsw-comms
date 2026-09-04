@@ -65,26 +65,43 @@ static int check_route_table(const char *route_table, size_t *entry_count)
 	return CSP_ERR_NONE;
 }
 
+/* Shared by start-up and by a later replacement, so a table loaded from the
+ * ground goes through exactly the checks the compiled one does.
+ */
+static int load_route_table(const char *route_table)
+{
+	size_t expected_entries;
+	int result = check_route_table(route_table, &expected_entries);
+
+	if (result != CSP_ERR_NONE || expected_entries == 0U) {
+		return result != CSP_ERR_NONE ? result : CSP_ERR_INVAL;
+	}
+
+	csp_rtable_clear();
+	result = csp_rtable_load(route_table);
+	if (result < 0 || (size_t)result != expected_entries) {
+		/* Never expose a partially loaded table: no routes is a state an
+		 * operator can diagnose, half a table is not. */
+		csp_rtable_clear();
+		return result < 0 ? result : CSP_ERR_INVAL;
+	}
+	return CSP_ERR_NONE;
+}
+
+int kfsw_csp_route_table_apply(const char *route_table)
+{
+	if (route_table == NULL) {
+		return CSP_ERR_INVAL;
+	}
+	return load_route_table(route_table);
+}
+
 static int configure_routes(void)
 {
 	const char *const route_table = CONFIG_KFSW_CSP_ROUTE_TABLE;
 
 	if (route_table[0] != '\0') {
-		size_t expected_entries;
-		int result = check_route_table(route_table, &expected_entries);
-
-		if (result != CSP_ERR_NONE || expected_entries == 0U) {
-			return result != CSP_ERR_NONE ? result : CSP_ERR_INVAL;
-		}
-
-		csp_rtable_clear();
-		result = csp_rtable_load(route_table);
-		if (result < 0 || (size_t)result != expected_entries) {
-			/* Startup must never expose a partially loaded static table. */
-			csp_rtable_clear();
-			return result < 0 ? result : CSP_ERR_INVAL;
-		}
-		return CSP_ERR_NONE;
+		return load_route_table(route_table);
 	}
 
 #if CONFIG_KFSW_CSP_KISS_UART
