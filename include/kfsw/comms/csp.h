@@ -74,6 +74,43 @@ int kfsw_csp_route_table_check(const char *route_table, size_t *entry_count);
 /** Send a standard CSP ping using CRC32 and return its round-trip time. */
 int kfsw_csp_ping(uint16_t node, uint32_t timeout_ms, size_t payload_size, uint32_t *round_trip_ms);
 
+/* Field sizes are stated here rather than taken from libcsp so that a caller
+ * does not have to include the protocol headers. They are checked against the
+ * wire message where the two meet.
+ */
+#define KFSW_CSP_IDENTITY_HOSTNAME_SIZE 21U
+#define KFSW_CSP_IDENTITY_MODEL_SIZE 31U
+#define KFSW_CSP_IDENTITY_REVISION_SIZE 21U
+#define KFSW_CSP_IDENTITY_DATE_SIZE 13U
+#define KFSW_CSP_IDENTITY_TIME_SIZE 10U
+
+/** Identity a remote node reports about itself. Every field is terminated. */
+struct kfsw_csp_identity {
+	char hostname[KFSW_CSP_IDENTITY_HOSTNAME_SIZE];
+	char model[KFSW_CSP_IDENTITY_MODEL_SIZE];
+	char revision[KFSW_CSP_IDENTITY_REVISION_SIZE];
+	char date[KFSW_CSP_IDENTITY_DATE_SIZE];
+	char time[KFSW_CSP_IDENTITY_TIME_SIZE];
+};
+
+/**
+ * @brief Ask a remote node to identify itself.
+ *
+ * Answers the question a ping cannot: not whether something is reachable, but
+ * what is running there. The revision is what changes after a firmware update,
+ * so this is how ground confirms that a new image is the one now executing.
+ *
+ * @param node Remote CSP address.
+ * @param timeout_ms Reply timeout in milliseconds.
+ * @param[out] identity Destination identity.
+ *
+ * @retval CSP_ERR_NONE The node answered.
+ * @retval CSP_ERR_INVAL CSP is not running, @p identity is NULL, or the
+ *                       address is out of range.
+ * @retval CSP_ERR_TIMEDOUT No answer arrived in time.
+ */
+int kfsw_csp_identify(uint16_t node, uint32_t timeout_ms, struct kfsw_csp_identity *identity);
+
 #ifdef __cplusplus
 }
 #endif

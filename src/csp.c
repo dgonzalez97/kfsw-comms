@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include <csp/csp.h>
+#include <csp/csp_cmp.h>
 #include <csp/csp_id.h>
 #include <csp/csp_iflist.h>
 #include <csp/csp_interface.h>
@@ -174,8 +175,16 @@ int kfsw_csp_init(void)
 		return result;
 	}
 
-	/* Expose only libcsp's standard ping service in this first increment. */
 	result = csp_bind_callback(csp_service_handler, CSP_PING);
+	if (result != CSP_ERR_NONE) {
+		return result;
+	}
+
+	/* The management port answers "what are you", which a ping cannot. It is
+	 * how ground confirms which image is running after an update, so a node
+	 * that cannot be asked cannot be verified remotely.
+	 */
+	result = csp_bind_callback(csp_service_handler, CSP_CMP);
 	if (result != CSP_ERR_NONE) {
 		return result;
 	}
@@ -289,6 +298,52 @@ int kfsw_csp_route_table_check(const char *route_table, size_t *entry_count)
 	}
 
 	return check_route_table(route_table, entry_count);
+}
+
+static void copy_identity_field(char *destination, size_t destination_size, const char *source,
+				size_t source_size)
+{
+	size_t length = MIN(destination_size - 1U, source_size);
+
+	memcpy(destination, source, length);
+	destination[length] = '\0';
+}
+
+int kfsw_csp_identify(uint16_t node, uint32_t timeout_ms, struct kfsw_csp_identity *identity)
+{
+	const unsigned int host_bits = csp_id_get_host_bits();
+	struct csp_cmp_message message = {0};
+	int result;
+
+	BUILD_ASSERT(KFSW_CSP_IDENTITY_HOSTNAME_SIZE > CSP_HOSTNAME_LEN);
+	BUILD_ASSERT(KFSW_CSP_IDENTITY_MODEL_SIZE > CSP_MODEL_LEN);
+	BUILD_ASSERT(KFSW_CSP_IDENTITY_REVISION_SIZE > CSP_CMP_IDENT_REV_LEN);
+	BUILD_ASSERT(KFSW_CSP_IDENTITY_DATE_SIZE > CSP_CMP_IDENT_DATE_LEN);
+	BUILD_ASSERT(KFSW_CSP_IDENTITY_TIME_SIZE > CSP_CMP_IDENT_TIME_LEN);
+
+	if (!initialized || !router_running || identity == NULL || node >= (1UL << host_bits)) {
+		return CSP_ERR_INVAL;
+	}
+
+	memset(identity, 0, sizeof(*identity));
+
+	result = csp_cmp_ident(node, timeout_ms, &message);
+	if (result != CSP_ERR_NONE) {
+		return CSP_ERR_TIMEDOUT;
+	}
+
+	copy_identity_field(identity->hostname, sizeof(identity->hostname), message.ident.hostname,
+			    CSP_HOSTNAME_LEN);
+	copy_identity_field(identity->model, sizeof(identity->model), message.ident.model,
+			    CSP_MODEL_LEN);
+	copy_identity_field(identity->revision, sizeof(identity->revision), message.ident.revision,
+			    CSP_CMP_IDENT_REV_LEN);
+	copy_identity_field(identity->date, sizeof(identity->date), message.ident.date,
+			    CSP_CMP_IDENT_DATE_LEN);
+	copy_identity_field(identity->time, sizeof(identity->time), message.ident.time,
+			    CSP_CMP_IDENT_TIME_LEN);
+
+	return CSP_ERR_NONE;
 }
 
 int kfsw_csp_ping(uint16_t node, uint32_t timeout_ms, size_t payload_size, uint32_t *round_trip_ms)
