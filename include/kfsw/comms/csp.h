@@ -71,6 +71,27 @@ void kfsw_csp_visit_routes(kfsw_csp_route_visitor_t visitor, void *context);
  */
 int kfsw_csp_route_table_check(const char *route_table, size_t *entry_count);
 
+/**
+ * @brief Replace the routing table with a validated one.
+ *
+ * Validates before it touches anything, so a malformed table is refused rather
+ * than leaving the router with part of one. If the load then disagrees with
+ * what validation counted, the table is cleared instead of left half applied:
+ * no routes at all is a state an operator can diagnose, and a partial table is
+ * not.
+ *
+ * The change is not persisted. A route table is the one setting that can put a
+ * node out of reach, and a wrong one that survived a reboot would be
+ * permanent; this way the compiled table comes back on the next boot.
+ *
+ * @param route_table Table in libcsp's CIDR syntax.
+ *
+ * @retval 0 The table is loaded.
+ * @return A negative libcsp error when the table is malformed, too large for
+ *         CONFIG_CSP_RTABLE_SIZE, or fails to load.
+ */
+int kfsw_csp_route_table_apply(const char *route_table);
+
 /** Send a standard CSP ping using CRC32 and return its round-trip time. */
 int kfsw_csp_ping(uint16_t node, uint32_t timeout_ms, size_t payload_size, uint32_t *round_trip_ms);
 
