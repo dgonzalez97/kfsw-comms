@@ -21,9 +21,8 @@ static bool router_running;
 
 /*
  * Self-addressed traffic goes through libcsp's own loopback, which is given
- * this node's address. That is how a GomSpace node does it, and it keeps the
- * mechanism in one place instead of adding a second interface that does the
- * same job.
+ * this node's address. That keeps the mechanism in one place instead of adding
+ * a second interface that does the same job.
  *
  * A packet a node sends to itself is short-circuited to the loopback before the
  * routing table is consulted, so this cannot conflict with an interface that
