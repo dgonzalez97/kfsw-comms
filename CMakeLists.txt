@@ -11,6 +11,10 @@ if(CONFIG_KFSW_CSP)
         list(APPEND kfsw_comms_sources src/uart.c)
     endif()
 
+    if(CONFIG_KFSW_CSP_CAN)
+        list(APPEND kfsw_comms_sources src/can.c)
+    endif()
+
     add_library(kfsw_comms STATIC ${kfsw_comms_sources})
 
     target_include_directories(kfsw_comms
