@@ -67,6 +67,47 @@ config KFSW_CSP_UART_PEER_ADDRESS
 	  Peer used by the permanent end-to-end UART transport test. Profiles
 	  must set this independently from the local CSP node address.
 
+config KFSW_CSP_CAN
+	bool "CSP over CAN"
+	depends on CAN
+	help
+	  Register a CAN controller as a CSP interface. libcsp fragments a CSP
+	  packet across CAN frames with its own protocol, so nothing above this
+	  needs to know the link carries eight bytes at a time.
+
+	  The controller comes from the kfsw,csp-can chosen node, so a board
+	  overlay decides which one. The same path serves a real controller and
+	  Zephyr's native-linux CAN device, which is how a host node reaches a
+	  USB adapter.
+
+if KFSW_CSP_CAN
+
+config KFSW_CSP_CAN_INTERFACE_NAME
+	string "CAN interface name"
+	default "CAN"
+	help
+	  Name libcsp knows this interface by, and what a route table entry
+	  refers to. At most nine characters, which is the pinned text parser's
+	  limit.
+
+config KFSW_CSP_CAN_BITRATE
+	int "CAN bitrate in bits per second"
+	default 500000
+	help
+	  Both ends of a CAN bus must agree on this. Only 125000, 250000,
+	  500000, 800000 and 1000000 are selectable at runtime; a build may
+	  start at any of them.
+
+config KFSW_CSP_CAN_PREFIX_LENGTH
+	int "CAN interface address prefix length"
+	default 14
+	range 0 14
+	help
+	  Prefix length over the 14-bit CSP v2 node identifier. 14 addresses one
+	  exact node; 0 makes this interface the default route.
+
+endif # KFSW_CSP_CAN
+
 config KFSW_CSP_ROUTER_STACK_SIZE
 	int "CSP router thread stack size"
 	default 2048

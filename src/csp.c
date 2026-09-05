@@ -1,5 +1,6 @@
 #include <zephyr/kernel.h>
 
+#include <errno.h>
 #include <string.h>
 
 #include <csp/csp.h>
@@ -11,6 +12,9 @@
 #include <csp/interfaces/csp_if_lo.h>
 
 #include <kfsw/comms/csp.h>
+#if CONFIG_KFSW_CSP_CAN
+#include <kfsw/comms/can.h>
+#endif
 
 #if CONFIG_KFSW_CSP_KISS_UART
 #include "uart_internal.h"
@@ -150,6 +154,16 @@ int kfsw_csp_init(void)
 	}
 #endif
 
+#if CONFIG_KFSW_CSP_CAN
+	/* Opened before the routes are loaded, because a route naming this
+	 * interface is rejected if the interface is not registered yet.
+	 */
+	result = kfsw_can_open();
+	if (result != 0) {
+		return CSP_ERR_DRIVER;
+	}
+#endif
+
 	configure_loopback_address();
 
 	result = configure_routes();
@@ -275,8 +289,14 @@ void kfsw_csp_visit_routes(kfsw_csp_route_visitor_t visitor, void *context)
 
 int kfsw_csp_route_table_check(const char *route_table, size_t *entry_count)
 {
+	/* The parser resolves every interface name against the registered list,
+	 * even when only checking, so before the interfaces exist it cannot
+	 * tell a bad table from a table it is too early to judge. Say which,
+	 * rather than calling both invalid: a caller registering a compiled
+	 * default has to be able to distinguish "wrong" from "not yet".
+	 */
 	if (!initialized) {
-		return CSP_ERR_INVAL;
+		return -ENETDOWN;
 	}
 
 	return check_route_table(route_table, entry_count);

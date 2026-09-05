@@ -69,6 +69,14 @@ void kfsw_csp_visit_routes(kfsw_csp_route_visitor_t visitor, void *context);
  * Interfaces referenced by name must already be registered. On success,
  * entry_count receives the number of parsed entries when it is non-NULL.
  */
+/**
+ * @brief Check a route table without applying it.
+ *
+ * Returns 0 when the table is well formed, -ENETDOWN when CSP has not been
+ * initialised yet and the interfaces a table names do not exist, and a libcsp
+ * error otherwise. The middle case is not a rejection: it means the question
+ * cannot be answered yet.
+ */
 int kfsw_csp_route_table_check(const char *route_table, size_t *entry_count);
 
 /**
