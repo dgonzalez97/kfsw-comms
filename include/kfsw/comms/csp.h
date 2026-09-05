@@ -14,6 +14,12 @@ struct kfsw_csp_info {
 	const char *hostname;
 	const char *model;
 	const char *revision;
+	/* When this image was compiled, from the machine that built it. The
+	 * same pair a remote node reports, so a local answer and a remote one
+	 * can be compared without knowing which came from where.
+	 */
+	const char *build_date;
+	const char *build_time;
 	bool initialized;
 	bool router_running;
 	size_t free_buffers;
@@ -49,6 +55,19 @@ typedef bool (*kfsw_csp_route_visitor_t)(const struct kfsw_csp_route_info *route
 #define KFSW_CSP_ROUTE_TABLE_MAX_LENGTH 99U
 
 /** Initialize libcsp, the configured interfaces, and static routes once. */
+/**
+ * @brief Set the revision this node reports, before CSP is initialised.
+ *
+ * The revision is what ground reads back to confirm which image is running, so
+ * it has to name the build rather than a fixed string. The value comes from
+ * the composition: this layer sits below the service that resolves it and
+ * cannot reach up for it.
+ *
+ * Has no effect once kfsw_csp_init() has run, and a NULL or empty string
+ * leaves the compiled default in place.
+ */
+void kfsw_csp_set_revision(const char *revision);
+
 int kfsw_csp_init(void);
 
 /** Start the single K-FSW-owned CSP router thread. */

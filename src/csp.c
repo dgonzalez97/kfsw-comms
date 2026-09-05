@@ -23,6 +23,20 @@
 static bool initialized;
 static bool router_running;
 
+/* What `csp ident` reports as the revision. The compiled default stands until
+ * the composition replaces it, so a build that never calls the setter still
+ * answers something rather than nothing.
+ */
+static const char *revision = CONFIG_KFSW_CSP_REVISION;
+
+void kfsw_csp_set_revision(const char *value)
+{
+	if (initialized || (value == NULL) || (value[0] == '\0')) {
+		return;
+	}
+	revision = value;
+}
+
 /*
  * Self-addressed traffic goes through libcsp's own loopback, which is given
  * this node's address. That keeps the mechanism in one place instead of adding
@@ -144,7 +158,7 @@ int kfsw_csp_init(void)
 
 	csp_conf.hostname = CONFIG_KFSW_CSP_HOSTNAME;
 	csp_conf.model = CONFIG_KFSW_CSP_MODEL;
-	csp_conf.revision = CONFIG_KFSW_CSP_REVISION;
+	csp_conf.revision = revision;
 	csp_init();
 
 #if CONFIG_KFSW_CSP_KISS_UART
@@ -213,7 +227,9 @@ void kfsw_csp_get_info(struct kfsw_csp_info *info)
 	info->address = CONFIG_KFSW_CSP_ADDRESS;
 	info->hostname = CONFIG_KFSW_CSP_HOSTNAME;
 	info->model = CONFIG_KFSW_CSP_MODEL;
-	info->revision = CONFIG_KFSW_CSP_REVISION;
+	info->revision = revision;
+	info->build_date = __DATE__;
+	info->build_time = __TIME__;
 	info->initialized = initialized;
 	info->router_running = router_running;
 	info->free_buffers = initialized ? csp_buffer_remaining() : 0;
