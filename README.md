@@ -11,10 +11,17 @@ without vendoring the source keeps the dependency's history its own and its
 ownership visible in the workspace. `zephyr/module.yml` declares the module;
 this repository owns how K-FSW configures it and what it exposes.
 
-Native profiles use libcsp's Zephyr USART driver. Physical UART profiles use
-Zephyr's interrupt-driven receive with libcsp's KISS decoder and transmitter.
-K-FSW configures each device, registers each named interface, loads the static
-route table, and exposes status and end-to-end test APIs.
+Two links are supported, both behind the same router, so a route decides which
+one a destination takes:
+
+```text
+  UART / KISS   a serial line, or a radio that looks like one
+  CAN           libcsp fragments a packet across frames with its own protocol
+```
+
+Full documentation is on the
+[K-FSW site](https://dgonzalez97.github.io/k-fsw/); what follows is the
+reasoning behind the parts that are easy to get wrong.
 
 ## CAN
 
