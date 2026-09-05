@@ -14,7 +14,34 @@ this repository owns how K-FSW configures it and what it exposes.
 Native profiles use libcsp's Zephyr USART driver. Physical UART profiles use
 Zephyr's interrupt-driven receive with libcsp's KISS decoder and transmitter.
 K-FSW configures each device, registers each named interface, loads the static
-route table, and exposes status and end-to-end test APIs. CAN is deferred.
+route table, and exposes status and end-to-end test APIs.
+
+## CAN
+
+A CAN frame carries eight bytes, so libcsp fragments a CSP packet across
+several of them with its own protocol. That is libcsp's job; this repository
+owns which controller is used, at what bitrate, and when it starts.
+
+The controller comes from a `kfsw,csp-can` chosen node, so reusable code names
+no board and no peripheral:
+
+```text
+  board        can1  ──┐
+                       ├── same libcsp driver ── CSP interface "CAN"
+  host    native-linux ┘         │
+          CAN → SocketCAN        └── a ground node reaches a USB adapter
+                                     without a second implementation
+```
+
+Only 125k, 250k, 500k, 800k and 1M are selectable. Changing the bitrate stops
+and restarts the controller, and since both ends of a bus must agree, a node
+reconfigured on its own goes quiet until whatever is at the other end follows.
+That is the caller's to sequence; `kfsw_can_set_bitrate()` only reports whether
+the controller accepted it.
+
+The controller-level filter accepts everything. A routing node wants that:
+libcsp decides what belongs to it from the CFP header, and a hardware filter
+would drop traffic the node is meant to forward.
 
 ## Several UART/KISS interfaces
 
