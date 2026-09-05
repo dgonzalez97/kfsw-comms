@@ -1,34 +1,29 @@
 # K-FSW Communications
 
-K-FSW communications owns the common communication stacks, interfaces, and
-routing lifecycle used by the application. Its first implementation integrates
-[libcsp](https://github.com/libcsp/libcsp) for Cubesat Space Protocol routing.
+Everything to do with getting a packet from one node to another: the stacks,
+the interfaces, and the routing lifecycle. The current implementation is
+[libcsp](https://github.com/libcsp/libcsp), for Cubesat Space Protocol.
 
-The composition repository pins libcsp to commit
-`097a039701c85e4ceb98e91f380810662e23878a` and supplies the target-specific
-Kconfig values. Native PTY profiles use libcsp's Zephyr USART driver. Physical
-UART profiles use Zephyr interrupt-driven receive with libcsp's maintained KISS
-decoder and transmitter. K-FSW configures each Zephyr device, registers each
-independently named KISS interface, loads libcsp's native static routing table,
-and exposes status and end-to-end test APIs. CAN remains intentionally
-deferred.
+libcsp stays a separate west project, checked out at
+`third_party/libcsp` and pinned by the composition to
+`097a039701c85e4ceb98e91f380810662e23878a`. Pinning an exact upstream revision
+without vendoring the source keeps the dependency's history its own and its
+ownership visible in the workspace. `zephyr/module.yml` declares the module;
+this repository owns how K-FSW configures it and what it exposes.
 
-libcsp remains a standalone west project so the composition workspace can pin
-one exact upstream revision without vendoring its source. Its checkout lives at
-`kfsw-comms/third_party/libcsp`, making the dependency's ownership visible in
-the workspace layout while preserving its independent Git history.
-`kfsw-comms/zephyr/module.yml` declares the module dependency, while this
-repository owns how K-FSW configures libcsp and exposes its transport APIs.
+Native profiles use libcsp's Zephyr USART driver. Physical UART profiles use
+Zephyr's interrupt-driven receive with libcsp's KISS decoder and transmitter.
+K-FSW configures each device, registers each named interface, loads the static
+route table, and exposes status and end-to-end test APIs. CAN is deferred.
 
-## Multiple UART/KISS interfaces
+## Several UART/KISS interfaces
 
-The legacy one-link composition remains a `kfsw,csp-uart` chosen node named
-`KISS`. It receives the same direct `0/0 KISS` route when
-`KFSW_CSP_ROUTE_TABLE` is empty.
+A one-link composition is a `kfsw,csp-uart` chosen node named `KISS`. It gets
+the direct `0/0 KISS` route when `KFSW_CSP_ROUTE_TABLE` is empty.
 
-A multi-link composition declares any number of enabled children under one
-`kfsw,csp-kiss-uarts` node. The child owns its UART phandle, interface name,
-address, prefix length, framing state, transport context, and counters:
+A multi-link composition declares enabled children under one
+`kfsw,csp-kiss-uarts` node. Each child owns its UART phandle, interface name,
+address, prefix length, framing state, transport context and counters:
 
 ```dts
 / {
@@ -52,51 +47,51 @@ address, prefix length, framing state, transport context, and counters:
 };
 ```
 
-Names must be unique, contain one through nine ASCII letters, digits, `_`, or
-`-`, and reference a unique UART. Nine characters is the pinned libcsp text
-parser's limit, so `KISS_1` is valid while `KISS_GROUND` is not. Polling
-profiles must set `CSP_UART_RX_THREAD_NUM` to at least the number of children;
-interrupt-driven profiles keep independent callback/KISS contexts instead.
+Names must be unique, one to nine characters of ASCII letters, digits, `_` or
+`-`, and each must reference a different UART. Nine is the pinned text parser's
+limit, which is why `KISS_1` works and `KISS_GROUND` does not. Polling profiles
+need `CSP_UART_RX_THREAD_NUM` at least as large as the number of children;
+interrupt-driven profiles keep independent callback and KISS contexts instead.
 
 ## Static routes
 
-`KFSW_CSP_ROUTE_TABLE` uses the pinned libcsp parser directly. Its format is a
-comma-separated list:
+`KFSW_CSP_ROUTE_TABLE` is handed to the pinned libcsp parser as-is. The format
+is a comma-separated list:
 
 ```text
 destination[/prefix-length] interface [via], next-entry
 10/14 KISS_1,11/14 KISS_2 11
 ```
 
-CSP v2 has a 14-bit node ID. The mask is a prefix length over those 14 bits:
-`/14` is one exact node and `/0` is the default route. Omitting the mask means
-`/14`. libcsp chooses the longest matching prefix. If entries have identical
-destination and prefix, the pinned implementation sends through each eligible
-matching interface rather than treating them as fallback priorities.
+CSP v2 node IDs are 14 bits, and the mask is a prefix length over those bits:
+`/14` is one exact node, `/0` is the default route, and omitting it means
+`/14`. libcsp picks the longest matching prefix. Entries with an identical
+destination and prefix are not fallbacks — the pinned implementation sends
+through every eligible interface.
 
-The optional final integer is libcsp's link-layer next-hop (`via`). Direct
-routes store `CSP_NO_VIA_ADDRESS`. libcsp passes a configured next hop to the
-selected interface. The pinned KISS driver has no link-layer address and
-therefore intentionally ignores it, but K-FSW retains and reports the field.
+The optional trailing integer is the link-layer next hop. Direct routes store
+`CSP_NO_VIA_ADDRESS`. The pinned KISS driver has no link-layer address and
+ignores a next hop, but K-FSW keeps and reports the field.
 
-At startup K-FSW registers every interface, rejects tables longer than the
-pinned parser's 99-character limit, calls `csp_rtable_check()` over the entire
-table, checks capacity, and only then calls `csp_rtable_load()`. Unknown
-interface names and malformed entries fail initialization. A load discrepancy
-clears the table rather than exposing a partial configuration. Runtime route
-mutation and persistent route storage are deliberately not exposed; callers
-can validate without mutation through `kfsw_csp_route_table_check()` and
-inspect snapshots through `kfsw_csp_visit_routes()`.
+At startup K-FSW registers the interfaces, rejects a table longer than the
+parser's 99-character limit, runs `csp_rtable_check()` over the whole thing,
+checks capacity, and only then loads it. An unknown interface name or a
+malformed entry fails initialisation, and a load that does not match what was
+checked clears the table rather than leaving a partial configuration in place.
+
+Routes cannot be changed at runtime or stored persistently. Callers can
+validate without mutating through `kfsw_csp_route_table_check()` and inspect
+through `kfsw_csp_visit_routes()`.
 
 ## Packet ownership
 
-K-FSW follows libcsp's zero-copy ownership rules directly:
+K-FSW follows libcsp's zero-copy rules directly:
 
-- A packet returned by a CSP receive API belongs to the receiver until it is
-  freed or passed to a CSP send/reply API.
-- A packet passed to a CSP send API transfers ownership, including when the
-  interface reports a transmit failure; callers must not reuse or free it.
-- Interface receive paths transfer complete packets to CSP's router queue.
-  libcsp either queues, routes, or frees them.
-- Pool or queue exhaustion causes allocation failure or a counted packet drop.
-  K-FSW-owned code does not retry indefinitely or allocate an unbounded queue.
+- a packet from a receive API belongs to the receiver until it is freed or
+  passed to a send or reply API;
+- a packet passed to a send API is gone, including when the interface reports a
+  transmit failure — callers must not reuse or free it;
+- interface receive paths hand complete packets to the router queue, which
+  queues, routes or frees them;
+- an exhausted pool or queue fails the allocation or counts a drop. Nothing
+  here retries forever or grows a queue without a bound.
