@@ -122,6 +122,66 @@ int kfsw_csp_route_table_apply(const char *route_table);
 /** Send a standard CSP ping using CRC32 and return its round-trip time. */
 int kfsw_csp_ping(uint16_t node, uint32_t timeout_ms, size_t payload_size, uint32_t *round_trip_ms);
 
+/**
+ * A wall-clock reading, seconds and nanoseconds since the Unix epoch, UTC.
+ *
+ * A node has no idea what time it is until something tells it. Nothing on a
+ * board knows the date at power-on, and a monotonic count answers "how long
+ * since I started", which is a different question from "when did this happen".
+ */
+struct kfsw_csp_clock {
+	int32_t seconds;
+	uint32_t nanoseconds;
+};
+
+/**
+ * @brief Read this node's wall clock.
+ */
+void kfsw_csp_clock_get(struct kfsw_csp_clock *clock);
+
+/**
+ * @brief Whether a reading is a time somebody actually set.
+ *
+ * A real-time clock that has never been told the time does not read zero. It
+ * reads whatever epoch its hardware starts from, which on an STM32 is the year
+ * 2000 — a plausible-looking date, and a plausible-looking wrong date in a
+ * downlink is worse than an admission that nobody has said what time it is.
+ *
+ * Anything earlier than the configured floor is not believed.
+ */
+bool kfsw_csp_clock_is_set(const struct kfsw_csp_clock *clock);
+
+/**
+ * @brief Set this node's wall clock.
+ *
+ * Returns 0 on success, -ENOTSUP where the composition carries no real-time
+ * clock, and -EINVAL for a time the platform will not accept.
+ */
+int kfsw_csp_clock_set(const struct kfsw_csp_clock *clock);
+
+/**
+ * @brief Read another node's wall clock.
+ *
+ * Returns 0 and fills @p clock, or a negative errno. A node that has never
+ * been set answers zero seconds rather than failing, so an operator can tell
+ * "not set" from "did not answer".
+ */
+int kfsw_csp_clock_read(uint16_t node, uint32_t timeout_ms, struct kfsw_csp_clock *clock);
+
+/**
+ * @brief Give another node the time.
+ *
+ * The reply carries the clock as the node reads it back, so the caller can see
+ * what actually landed rather than assuming. What comes back is filled into
+ * @p clock.
+ *
+ * The propagation delay is not compensated. Over a slow radio the receiving
+ * node ends up late by roughly the one-way time, which for a link measured in
+ * hundreds of milliseconds is far below the resolution anything here needs.
+ * Saying so is better than implying an accuracy this does not have.
+ */
+int kfsw_csp_clock_write(uint16_t node, uint32_t timeout_ms, struct kfsw_csp_clock *clock);
+
 /* Field sizes are stated here rather than taken from libcsp so that a caller
  * does not have to include the protocol headers. They are checked against the
  * wire message where the two meet.

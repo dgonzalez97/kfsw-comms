@@ -1,10 +1,12 @@
 #include <zephyr/kernel.h>
 
+#include <endian.h>
 #include <errno.h>
 #include <string.h>
 
 #include <csp/csp.h>
 #include <csp/csp_cmp.h>
+#include <csp/csp_hooks.h>
 #include <csp/csp_id.h>
 #include <csp/csp_iflist.h>
 #include <csp/csp_interface.h>
@@ -316,6 +318,91 @@ int kfsw_csp_route_table_check(const char *route_table, size_t *entry_count)
 	}
 
 	return check_route_table(route_table, entry_count);
+}
+
+void kfsw_csp_clock_get(struct kfsw_csp_clock *clock)
+{
+	csp_timestamp_t now = {0};
+
+	if (clock == NULL) {
+		return;
+	}
+	/* libcsp's own hook, so a node reports the same time to the shell and
+	 * to a remote caller. Two readings of one clock that disagree would be
+	 * worse than one that is merely unset.
+	 */
+	csp_clock_get_time(&now);
+	clock->seconds = (int32_t)now.tv_sec;
+	clock->nanoseconds = now.tv_nsec;
+}
+
+bool kfsw_csp_clock_is_set(const struct kfsw_csp_clock *clock)
+{
+	return (clock != NULL) && (clock->seconds >= CONFIG_KFSW_CSP_CLOCK_FLOOR);
+}
+
+int kfsw_csp_clock_set(const struct kfsw_csp_clock *clock)
+{
+	csp_timestamp_t value;
+
+	if (clock == NULL) {
+		return -EINVAL;
+	}
+	value.tv_sec = (uint32_t)clock->seconds;
+	value.tv_nsec = clock->nanoseconds;
+
+	return (csp_clock_set_time(&value) == CSP_ERR_NONE) ? 0 : -ENOTSUP;
+}
+
+static int clock_transaction(uint16_t node, uint32_t timeout_ms, struct kfsw_csp_clock *clock,
+			     bool set)
+{
+	struct csp_cmp_clock_msg message = {0};
+	int result;
+
+	if (clock == NULL) {
+		return -EINVAL;
+	}
+	if (!initialized) {
+		return -ENETDOWN;
+	}
+
+	/* Zero seconds is how the protocol says "only tell me the time". The
+	 * far side sets nothing and answers with what it has, which is why one
+	 * message serves both directions.
+	 */
+	if (set) {
+		message.clock.tv_sec = htobe32((uint32_t)clock->seconds);
+		message.clock.tv_nsec = htobe32(clock->nanoseconds);
+	}
+
+	result = csp_cmp_clock(node, timeout_ms, &message);
+	if (result != CSP_ERR_NONE) {
+		return -ETIMEDOUT;
+	}
+
+	clock->seconds = (int32_t)be32toh(message.clock.tv_sec);
+	clock->nanoseconds = be32toh(message.clock.tv_nsec);
+	return 0;
+}
+
+int kfsw_csp_clock_read(uint16_t node, uint32_t timeout_ms, struct kfsw_csp_clock *clock)
+{
+	return clock_transaction(node, timeout_ms, clock, false);
+}
+
+int kfsw_csp_clock_write(uint16_t node, uint32_t timeout_ms, struct kfsw_csp_clock *clock)
+{
+	if (!kfsw_csp_clock_is_set(clock)) {
+		/* Refused here rather than sent. Zero means "read" on the wire,
+		 * so a node asked to adopt an unset clock would answer
+		 * cheerfully and change nothing; and handing over an epoch
+		 * nobody set would spread a wrong date rather than a missing
+		 * one.
+		 */
+		return -EINVAL;
+	}
+	return clock_transaction(node, timeout_ms, clock, true);
 }
 
 static void copy_identity_field(char *destination, size_t destination_size, const char *source,
