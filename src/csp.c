@@ -40,16 +40,9 @@ void kfsw_csp_set_revision(const char *value)
 }
 
 /*
- * Self-addressed traffic goes through libcsp's own loopback, which is given
- * this node's address. That keeps the mechanism in one place instead of adding
- * a second interface that does the same job.
- *
- * A packet a node sends to itself is short-circuited to the loopback before the
- * routing table is consulted, so this cannot conflict with an interface that
- * also covers the address.
- *
- * The shell answers "who am I" and "am I alive" locally rather than over the
- * network, so neither depends on a self-addressed round trip.
+ * Self-addressed traffic uses libcsp's loopback, given this node's address. It
+ * is short-circuited before the routing table is consulted, so it cannot
+ * conflict with an interface that also covers the address.
  */
 static void configure_loopback_address(void)
 {
