@@ -77,11 +77,9 @@ void kfsw_csp_get_info(struct kfsw_csp_info *info);
 /**
  * @brief Hand each registered interface to @p visitor, one at a time.
  *
- * The list belongs to libcsp and is walked under its lock, so it is not
- * returned as an array: a caller would need a buffer sized for a list that can
- * change, and would be reading it after the lock was dropped. Passing each
- * entry out instead means the caller sees a consistent snapshot of one
- * interface and copies only what it needs.
+ * The list is libcsp's and is walked under its lock, so returning it as an
+ * array would mean sizing a buffer for a list that can change and reading it
+ * after the lock was dropped. Each entry is handed out instead.
  *
  * Return false from @p visitor to stop early.
  */
@@ -187,7 +185,6 @@ struct kfsw_csp_identity {
 /**
  * @brief Ask a remote node to identify itself.
  * Gets the hostname, model, revision, and build date and time.
- *
  *
  * @param node Remote CSP address.
  * @param timeout_ms Reply timeout in milliseconds.
