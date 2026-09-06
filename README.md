@@ -19,6 +19,11 @@ one a destination takes:
   CAN           libcsp fragments a packet across frames with its own protocol
 ```
 
+Three nodes on one link — a ground node, a board and a second host node — with
+the router deciding where each packet goes:
+
+![Traffic between three nodes over CSP](https://raw.githubusercontent.com/dgonzalez97/k-fsw/main/docs/media/param-over-a-link.gif)
+
 Full documentation is on the
 [K-FSW site](https://dgonzalez97.github.io/k-fsw/); what follows is the
 reasoning behind the parts that are easy to get wrong.
