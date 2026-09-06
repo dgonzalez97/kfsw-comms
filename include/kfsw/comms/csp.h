@@ -9,40 +9,42 @@
 extern "C" {
 #endif
 
+/** What this node answers when something asks it what it is. */
 struct kfsw_csp_info {
-	uint16_t address;
-	const char *hostname;
-	const char *model;
-	const char *revision;
-	/* When this image was compiled, from the machine that built it. The
-	 * same pair a remote node reports, so a local answer and a remote one
-	 * can be compared without knowing which came from where.
-	 */
-	const char *build_date;
-	const char *build_time;
-	bool initialized;
-	bool router_running;
-	size_t free_buffers;
+	uint16_t address;       /**< This node's CSP address. */
+	const char *hostname;   /**< Name reported to a remote identity request. */
+	const char *model;      /**< Hardware or composition this image was built for. */
+	const char *revision;   /**< Image revision, so ground can confirm what is running. */
+	const char *build_date; /**< Date this image was compiled. */
+	const char *build_time; /**< Time this image was compiled. */
+	bool initialized;       /**< libcsp and its interfaces are up. */
+	bool router_running;    /**< The router thread is started and forwarding. */
+	size_t free_buffers;    /**< Packet buffers still in the pool; zero means the
+				   link is saturated. */
 };
 
+/** One registered link, and what it has carried since boot. */
 struct kfsw_csp_interface_info {
-	const char *name;
-	uint16_t address;
-	uint16_t prefix_length;
-	bool is_default;
-	uint32_t tx_packets;
-	uint32_t rx_packets;
-	uint32_t tx_errors;
-	uint32_t rx_errors;
-	uint32_t dropped_packets;
+	const char *name;         /**< Interface name, as a route table refers to it. */
+	uint16_t address;         /**< Address this node answers to on this link. */
+	uint16_t prefix_length;   /**< Bits of the address that must match, over 14-bit
+				     node IDs. */
+	bool is_default;          /**< Carries anything no other route claims. */
+	uint32_t tx_packets;      /**< Packets handed to the driver. */
+	uint32_t rx_packets;      /**< Packets assembled from the driver. */
+	uint32_t tx_errors;       /**< Sends the driver refused. */
+	uint32_t rx_errors;       /**< Frames that arrived malformed or too large. */
+	uint32_t dropped_packets; /**< Packets discarded for want of a buffer or a
+				     route. */
 };
 
+/** One entry of the static routing table. */
 struct kfsw_csp_route_info {
-	uint16_t address;
-	uint16_t prefix_length;
-	const char *interface_name;
-	uint16_t via;
-	bool has_via;
+	uint16_t address;           /**< Destination this entry matches. */
+	uint16_t prefix_length;     /**< Bits of it that must match; 0 is the default route. */
+	const char *interface_name; /**< Link the packet leaves by. */
+	uint16_t via;               /**< Link-layer next hop, meaningful only when has_via. */
+	bool has_via;               /**< The entry names a next hop rather than sending direct. */
 };
 
 typedef bool (*kfsw_csp_interface_visitor_t)(const struct kfsw_csp_interface_info *interface_info,
@@ -60,11 +62,7 @@ typedef bool (*kfsw_csp_route_visitor_t)(const struct kfsw_csp_route_info *route
  *
  * The revision is what ground reads back to confirm which image is running, so
  * it has to name the build rather than a fixed string. The value comes from
- * the composition: this layer sits below the service that resolves it and
- * cannot reach up for it.
- *
- * Has no effect once kfsw_csp_init() has run, and a NULL or empty string
- * leaves the compiled default in place.
+ * the composition
  */
 void kfsw_csp_set_revision(const char *revision);
 
@@ -73,43 +71,43 @@ int kfsw_csp_init(void);
 /** Start the single K-FSW-owned CSP router thread. */
 int kfsw_csp_start(void);
 
-/** Copy the current local CSP lifecycle and identity information. */
+/** Copy the current local CSP identity information. */
 void kfsw_csp_get_info(struct kfsw_csp_info *info);
 
-/** Visit a snapshot of each registered libcsp interface. */
+/**
+ * @brief Hand each registered interface to @p visitor, one at a time.
+ *
+ * The list belongs to libcsp and is walked under its lock, so it is not
+ * returned as an array: a caller would need a buffer sized for a list that can
+ * change, and would be reading it after the lock was dropped. Passing each
+ * entry out instead means the caller sees a consistent snapshot of one
+ * interface and copies only what it needs.
+ *
+ * Return false from @p visitor to stop early.
+ */
 void kfsw_csp_visit_interfaces(kfsw_csp_interface_visitor_t visitor, void *context);
 
-/** Visit a snapshot of each configured libcsp static route. */
+/**
+ * @brief Hand each configured static route to @p visitor, one at a time.
+ *
+ * Same contract as kfsw_csp_visit_interfaces(): the table is libcsp's, and
+ * return false to stop early.
+ */
 void kfsw_csp_visit_routes(kfsw_csp_route_visitor_t visitor, void *context);
 
-/**
- * Validate a complete libcsp-native route table without changing live routes.
- *
- * Interfaces referenced by name must already be registered. On success,
- * entry_count receives the number of parsed entries when it is non-NULL.
- */
 /**
  * @brief Check a route table without applying it.
  *
  * Returns 0 when the table is well formed, -ENETDOWN when CSP has not been
  * initialised yet and the interfaces a table names do not exist, and a libcsp
- * error otherwise. The middle case is not a rejection: it means the question
- * cannot be answered yet.
+ * error otherwise.
  */
 int kfsw_csp_route_table_check(const char *route_table, size_t *entry_count);
 
 /**
- * @brief Replace the routing table with a validated one.
+ * @brief Replace the routing table with a validated one, and validates before
+ * applying.
  *
- * Validates before it touches anything, so a malformed table is refused rather
- * than leaving the router with part of one. If the load then disagrees with
- * what validation counted, the table is cleared instead of left half applied:
- * no routes at all is a state an operator can diagnose, and a partial table is
- * not.
- *
- * The change is not persisted. A route table is the one setting that can put a
- * node out of reach, and a wrong one that survived a reboot would be
- * permanent; this way the compiled table comes back on the next boot.
  *
  * @param route_table Table in libcsp's CIDR syntax.
  *
@@ -122,37 +120,24 @@ int kfsw_csp_route_table_apply(const char *route_table);
 /** Send a standard CSP ping using CRC32 and return its round-trip time. */
 int kfsw_csp_ping(uint16_t node, uint32_t timeout_ms, size_t payload_size, uint32_t *round_trip_ms);
 
-/**
- * A wall-clock reading, seconds and nanoseconds since the Unix epoch, UTC.
- *
- * A node has no idea what time it is until something tells it. Nothing on a
- * board knows the date at power-on, and a monotonic count answers "how long
- * since I started", which is a different question from "when did this happen".
- */
 struct kfsw_csp_clock {
 	int32_t seconds;
 	uint32_t nanoseconds;
 };
 
 /**
- * @brief Read this node's wall clock.
+ * @brief Read this node's RTC clock.
  */
 void kfsw_csp_clock_get(struct kfsw_csp_clock *clock);
 
 /**
  * @brief Whether a reading is a time somebody actually set.
  *
- * A real-time clock that has never been told the time does not read zero. It
- * reads whatever epoch its hardware starts from, which on an STM32 is the year
- * 2000 — a plausible-looking date, and a plausible-looking wrong date in a
- * downlink is worse than an admission that nobody has said what time it is.
- *
- * Anything earlier than the configured floor is not believed.
  */
 bool kfsw_csp_clock_is_set(const struct kfsw_csp_clock *clock);
 
 /**
- * @brief Set this node's wall clock.
+ * @brief Set this node's RTC clock.
  *
  * Returns 0 on success, -ENOTSUP where the composition carries no real-time
  * clock, and -EINVAL for a time the platform will not accept.
@@ -160,11 +145,10 @@ bool kfsw_csp_clock_is_set(const struct kfsw_csp_clock *clock);
 int kfsw_csp_clock_set(const struct kfsw_csp_clock *clock);
 
 /**
- * @brief Read another node's wall clock.
+ * @brief Read another node's RTC clock.
  *
  * Returns 0 and fills @p clock, or a negative errno. A node that has never
- * been set answers zero seconds rather than failing, so an operator can tell
- * "not set" from "did not answer".
+ * been set answers zero seconds rather than failing.
  */
 int kfsw_csp_clock_read(uint16_t node, uint32_t timeout_ms, struct kfsw_csp_clock *clock);
 
@@ -176,9 +160,8 @@ int kfsw_csp_clock_read(uint16_t node, uint32_t timeout_ms, struct kfsw_csp_cloc
  * @p clock.
  *
  * The propagation delay is not compensated. Over a slow radio the receiving
- * node ends up late by roughly the one-way time, which for a link measured in
- * hundreds of milliseconds is far below the resolution anything here needs.
- * Saying so is better than implying an accuracy this does not have.
+ * node ends up late by roughly the one-way time. This can be corrected by some
+ * radios.
  */
 int kfsw_csp_clock_write(uint16_t node, uint32_t timeout_ms, struct kfsw_csp_clock *clock);
 
@@ -203,10 +186,8 @@ struct kfsw_csp_identity {
 
 /**
  * @brief Ask a remote node to identify itself.
+ * Gets the hostname, model, revision, and build date and time.
  *
- * Answers the question a ping cannot: not whether something is reachable, but
- * what is running there. The revision is what changes after a firmware update,
- * so this is how ground confirms that a new image is the one now executing.
  *
  * @param node Remote CSP address.
  * @param timeout_ms Reply timeout in milliseconds.
