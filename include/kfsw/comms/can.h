@@ -63,18 +63,15 @@ void kfsw_can_get_info(struct kfsw_can_info *info);
 /**
  * @brief Whether a bitrate is one an operator may select.
  *
- * Exposed so a parameter validator can refuse a value before it is stored,
- * rather than a change callback discovering it cannot be applied.
+ * Exposed so a parameter validator can reject a bitrate before the
+ * controller is opened.
  */
 bool kfsw_can_bitrate_supported(uint32_t bitrate);
 
 /**
  * @brief Apply a new bitrate, restarting the controller.
  *
- * Both ends of a CAN bus must agree, so a node reconfigured on its own stops
- * being reachable until whatever is at the other end follows. That is the
- * caller's problem to sequence; this function only reports whether the
- * controller accepted the change.
+ * This function only reports whether the controller accepted the change.
  *
  * Returns 0 on success, -EINVAL for an unsupported bitrate, -ENODEV when no
  * controller is open.
