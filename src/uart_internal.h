@@ -7,6 +7,10 @@
 #include <csp/csp_interface.h>
 
 int kfsw_uart_open_all(void);
+#if CONFIG_KFSW_CSP_UART_CODEC
+int kfsw_uart_codec_attach(csp_iface_t *iface);
+int kfsw_uart_codec_check(void);
+#endif
 size_t kfsw_uart_count(void);
 const char *kfsw_uart_first_interface_name(void);
 

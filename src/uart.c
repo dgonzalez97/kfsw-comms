@@ -289,8 +289,20 @@ int kfsw_uart_open_all(void)
 		if (result != CSP_ERR_NONE) {
 			return result;
 		}
+#if CONFIG_KFSW_CSP_UART_CODEC
+		result = kfsw_uart_codec_attach(uart_contexts[i].interface);
+		if (result != 0) {
+			return result;
+		}
+#endif
 	}
 
+#if CONFIG_KFSW_CSP_UART_CODEC
+	result = kfsw_uart_codec_check();
+	if (result != 0) {
+		return result;
+	}
+#endif
 	opened = true;
 	return CSP_ERR_NONE;
 }
