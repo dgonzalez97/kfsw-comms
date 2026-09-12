@@ -11,6 +11,15 @@ if(CONFIG_KFSW_CSP)
         list(APPEND kfsw_comms_sources src/uart.c)
     endif()
 
+    if(CONFIG_KFSW_CSP_UART_CODEC)
+        list(APPEND kfsw_comms_sources src/uart_codec.c)
+        set_property(SOURCE
+            "${CMAKE_CURRENT_LIST_DIR}/third_party/libcsp/src/interfaces/csp_if_kiss.c"
+            TARGET_DIRECTORY csp APPEND PROPERTY COMPILE_DEFINITIONS
+            csp_qfifo_write=kfsw_uart_codec_receive
+        )
+    endif()
+
     if(CONFIG_KFSW_CSP_CAN)
         list(APPEND kfsw_comms_sources src/can.c)
     endif()

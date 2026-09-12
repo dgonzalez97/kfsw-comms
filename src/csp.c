@@ -25,6 +25,7 @@
 
 static bool initialized;
 static bool router_running;
+static K_MUTEX_DEFINE(lifecycle_lock);
 
 /* What `csp ident` reports as the revision. The compiled default stands until
  * the composition replaces it, so a build that never calls the setter still
@@ -78,9 +79,7 @@ static int check_route_table(const char *route_table, size_t *entry_count)
 	return CSP_ERR_NONE;
 }
 
-/* Shared by start-up and by a later replacement, so a table loaded from the
- * ground goes through exactly the checks the compiled one does.
- */
+/* Called only before the router starts. */
 static int load_route_table(const char *route_table)
 {
 	size_t expected_entries;
@@ -103,10 +102,22 @@ static int load_route_table(const char *route_table)
 
 int kfsw_csp_route_table_apply(const char *route_table)
 {
+	int result;
+
 	if (route_table == NULL) {
 		return CSP_ERR_INVAL;
 	}
-	return load_route_table(route_table);
+	k_mutex_lock(&lifecycle_lock, K_FOREVER);
+	/* libcsp readers keep pointers into the live CIDR table. */
+	if (router_running) {
+		result = CSP_ERR_NOTSUP;
+	} else if (!initialized) {
+		result = CSP_ERR_INVAL;
+	} else {
+		result = load_route_table(route_table);
+	}
+	k_mutex_unlock(&lifecycle_lock);
+	return result;
 }
 
 static int configure_routes(void)
@@ -201,16 +212,20 @@ int kfsw_csp_init(void)
 
 int kfsw_csp_start(void)
 {
+	k_mutex_lock(&lifecycle_lock, K_FOREVER);
 	if (!initialized) {
+		k_mutex_unlock(&lifecycle_lock);
 		return CSP_ERR_INVAL;
 	}
 
 	if (router_running) {
+		k_mutex_unlock(&lifecycle_lock);
 		return CSP_ERR_NONE;
 	}
 
-	k_thread_start(kfsw_csp_router_thread);
 	router_running = true;
+	k_thread_start(kfsw_csp_router_thread);
+	k_mutex_unlock(&lifecycle_lock);
 	return CSP_ERR_NONE;
 }
 

@@ -134,3 +134,8 @@ K-FSW follows libcsp's zero-copy rules directly:
   queues, routes or frees them;
 - an exhausted pool or queue fails the allocation or counts a drop. Nothing
   here retries forever or grows a queue without a bound.
+
+## License
+
+Licensed under [Apache 2.0](LICENSE). Third-party dependencies retain their
+own licences.

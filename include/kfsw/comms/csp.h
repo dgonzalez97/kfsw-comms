@@ -103,13 +103,13 @@ void kfsw_csp_visit_routes(kfsw_csp_route_visitor_t visitor, void *context);
 int kfsw_csp_route_table_check(const char *route_table, size_t *entry_count);
 
 /**
- * @brief Replace the routing table with a validated one, and validates before
- * applying.
- *
+ * @brief Validate and replace routes after initialization, before router start.
  *
  * @param route_table Table in libcsp's CIDR syntax.
  *
  * @retval 0 The table is loaded.
+ * @retval CSP_ERR_NOTSUP The router is running; routes remain unchanged.
+ * @retval CSP_ERR_INVAL CSP is not initialized or the table is invalid.
  * @return A negative libcsp error when the table is malformed, too large for
  *         CONFIG_CSP_RTABLE_SIZE, or fails to load.
  */

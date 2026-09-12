@@ -67,6 +67,31 @@ config KFSW_CSP_UART_PEER_ADDRESS
 	  Peer used by the permanent end-to-end UART transport test. Profiles
 	  must set this independently from the local CSP node address.
 
+config KFSW_CSP_UART_CODEC
+	bool "Packet codec on a KISS interface"
+	depends on KFSW_CSP_KISS_UART
+	help
+	  Allow a module to protect packets on one named UART interface. A bounded
+	  receive worker runs the codec outside interrupt context.
+
+config KFSW_CSP_UART_CODEC_STACK_SIZE
+	int "UART codec receive stack"
+	depends on KFSW_CSP_UART_CODEC
+	default 3072
+	range 1024 8192
+
+config KFSW_CSP_UART_CODEC_QUEUE_DEPTH
+	int "Queued UART packets awaiting their codec"
+	depends on KFSW_CSP_UART_CODEC
+	default 4
+	range 1 16
+
+config KFSW_CSP_UART_CODEC_PRIORITY
+	int "UART codec receive priority"
+	depends on KFSW_CSP_UART_CODEC
+	default 3
+	range 1 15
+
 config KFSW_CSP_CAN
 	bool "CSP over CAN"
 	depends on CAN
