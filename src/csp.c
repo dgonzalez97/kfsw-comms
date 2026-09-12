@@ -13,6 +13,7 @@
 #include <csp/csp_rtable.h>
 #include <csp/interfaces/csp_if_lo.h>
 
+#include <kfsw/platform/wallclock.h>
 #include <kfsw/comms/csp.h>
 #if CONFIG_KFSW_CSP_CAN
 #include <kfsw/comms/can.h>
@@ -312,6 +313,45 @@ int kfsw_csp_route_table_check(const char *route_table, size_t *entry_count)
 
 	return check_route_table(route_table, entry_count);
 }
+
+#if CONFIG_KFSW_CSP_CLOCK_RTC
+/*
+ * Where a node's idea of the time comes from.
+ *
+ * libcsp ships weak hooks that read the POSIX realtime clock, which on Zephyr
+ * is an offset held in RAM: every reset puts it back to zero, so a node that
+ * reboots on a watchdog comes back not knowing when it is. Everything gated on
+ * a valid clock then stays quiet — scheduled collection, beacons — until a
+ * ground station is in view to set it, which is the worst moment to need one.
+ *
+ * These override the weak hooks with the board's RTC, whose counter a reset
+ * does not touch. They live in this file rather than beside the rest of the
+ * clock code for a linker reason worth stating: a strong definition only beats
+ * a weak one if its object is actually pulled out of the archive, and nothing
+ * else would have referenced a file that contains only overrides.
+ */
+void csp_clock_get_time(csp_timestamp_t *time)
+{
+	int64_t seconds = 0;
+
+	if (time == NULL) {
+		return;
+	}
+	time->tv_nsec = 0U;
+	/* A clock present but never set reads as zero, which is what every
+	 * caller already treats as "nobody has said what time it is".
+	 */
+	time->tv_sec = (kfsw_wallclock_get(&seconds) == 0) ? (uint32_t)seconds : 0U;
+}
+
+int csp_clock_set_time(const csp_timestamp_t *time)
+{
+	if (time == NULL) {
+		return CSP_ERR_INVAL;
+	}
+	return (kfsw_wallclock_set((int64_t)time->tv_sec) == 0) ? CSP_ERR_NONE : CSP_ERR_INVAL;
+}
+#endif /* CONFIG_KFSW_CSP_CLOCK_RTC */
 
 void kfsw_csp_clock_get(struct kfsw_csp_clock *clock)
 {

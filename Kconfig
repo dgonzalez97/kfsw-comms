@@ -108,6 +108,27 @@ config KFSW_CSP_CAN_PREFIX_LENGTH
 
 endif # KFSW_CSP_CAN
 
+config KFSW_CSP_CLOCK_RTC
+	bool "Keep the time in the RTC rather than in RAM"
+	depends on RTC
+	default y if RTC
+	help
+	  libcsp's own clock is an offset held in RAM, so every reset puts a
+	  node back to not knowing when it is. Everything gated on a valid
+	  clock then stays quiet — scheduled collection, beacons — until a
+	  ground station is in view to set it, which is the worst moment to
+	  need one.
+
+	  This reads and writes the RTC named by the `kfsw,rtc` chosen node
+	  instead. Its counter lives in a backup domain a software reset leaves
+	  alone, so a node that reboots on a watchdog or on command comes back
+	  with the time and resumes on its own.
+
+	  A power cycle is the board's business rather than this option's: the
+	  domain only survives one where VBAT is actually backed, which on a
+	  development board usually means fitting the cell the footprint is
+	  there for.
+
 config KFSW_CSP_CLOCK_FLOOR
 	int "Earliest time that counts as set, in seconds since 1970"
 	default 1577836800
