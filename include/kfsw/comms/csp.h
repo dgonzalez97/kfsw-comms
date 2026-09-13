@@ -9,6 +9,25 @@
 extern "C" {
 #endif
 
+/**
+ * @brief Print every packet the router takes in and every one this node sends.
+ *
+ * Answers the question a link failure actually poses — did the packet leave,
+ * did it arrive, and where was it addressed — which no counter can, because a
+ * counter says how many and not which. Off by default: a busy link would push
+ * the line an operator is reading off the screen.
+ *
+ * Each packet prints its source and destination node, both ports, the priority
+ * and the flags. Tracing is per node, so a hop that drops traffic is found by
+ * turning it on at each end and seeing which one stops reporting.
+ *
+ * @param enabled True to trace, false to stop.
+ */
+void kfsw_csp_set_packet_trace(bool enabled);
+
+/** Whether packet tracing is currently on. */
+bool kfsw_csp_get_packet_trace(void);
+
 /** What this node answers when something asks it what it is. */
 struct kfsw_csp_info {
 	uint16_t address;       /**< This node's CSP address. */

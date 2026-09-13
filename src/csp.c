@@ -1,11 +1,13 @@
 #include <zephyr/kernel.h>
 
 #include <endian.h>
+#include <stdarg.h>
 #include <errno.h>
 #include <string.h>
 
 #include <csp/csp.h>
 #include <csp/csp_cmp.h>
+#include <csp/csp_debug.h>
 #include <csp/csp_hooks.h>
 #include <csp/csp_id.h>
 #include <csp/csp_iflist.h>
@@ -327,6 +329,60 @@ int kfsw_csp_route_table_check(const char *route_table, size_t *entry_count)
 	}
 
 	return check_route_table(route_table, entry_count);
+}
+
+/** Longest trace line libcsp emits, with its colour sequences and a terminator. */
+#define KFSW_CSP_TRACE_LINE_MAX 192U
+
+/* libcsp declares this weak so a port can decide where its diagnostics go.
+ * Taking it here puts them on the same console as everything else and tags
+ * them, so a trace is recognisable in a capture that also carries log lines.
+ *
+ * It is formatted into a buffer rather than printed piecewise for one reason:
+ * libcsp closes its colour *after* the newline, and console writes are not
+ * serialised against the shell. Output that lands between the colour and the
+ * reset leaves the terminal coloured, and every later shell line inherits it,
+ * so a parameter an operator asked for comes back in the trace's colour. The
+ * newline is moved to the end here, which keeps the colour on this line alone.
+ */
+void csp_print_func(const char *fmt, ...)
+{
+	char line[KFSW_CSP_TRACE_LINE_MAX];
+	char *newline;
+	va_list args;
+	int length;
+
+	va_start(args, fmt);
+	length = vsnprintk(line, sizeof(line), fmt, args);
+	va_end(args);
+
+	if (length <= 0) {
+		return;
+	}
+
+	/* A truncated trace line is still worth printing: it names the packet,
+	 * which is what the line is read for.
+	 */
+	if ((size_t)length >= sizeof(line)) {
+		line[sizeof(line) - 1U] = '\0';
+	}
+
+	newline = strchr(line, '\n');
+	if (newline != NULL) {
+		(void)memmove(newline, newline + 1, strlen(newline + 1) + 1U);
+	}
+
+	printk("[DEBUG] %s\033[0m\n", line);
+}
+
+void kfsw_csp_set_packet_trace(bool enabled)
+{
+	csp_dbg_packet_print = enabled ? 1U : 0U;
+}
+
+bool kfsw_csp_get_packet_trace(void)
+{
+	return csp_dbg_packet_print != 0U;
 }
 
 #if CONFIG_KFSW_CSP_CLOCK_RTC
