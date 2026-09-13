@@ -22,7 +22,12 @@ config KFSW_CSP_HOSTNAME
 
 config KFSW_CSP_MODEL
 	string "CSP model"
-	default "K-FSW"
+	default BOARD_TARGET
+	help
+	  Hardware this image was built for, as an identity request answers it.
+	  Defaults to the board target so a node asked what it is names its
+	  board rather than the software running on it, which the revision
+	  already reports. Override it where a product name is wanted instead.
 
 config KFSW_CSP_REVISION
 	string "CSP revision"
