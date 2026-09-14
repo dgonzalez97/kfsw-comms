@@ -160,8 +160,7 @@ static int preflight(void)
 static int configure_device(const struct kfsw_uart_config *config)
 {
 	/*
-	 * Native PTYs intentionally return ENOSYS because baud and framing are
-	 * properties of the external bridge rather than the simulated device.
+	 * Native PTYs return ENOSYS; baud and framing are set by the host bridge.
 	 */
 	int result = uart_configure(config->device, &config->serial);
 

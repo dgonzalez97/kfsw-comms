@@ -10,16 +10,10 @@ extern "C" {
 #endif
 
 /**
- * @brief Print every packet the router takes in and every one this node sends.
+ * @brief Print every packet the router receives and every packet this node sends.
  *
- * Answers the question a link failure actually poses — did the packet leave,
- * did it arrive, and where was it addressed — which no counter can, because a
- * counter says how many and not which. Off by default: a busy link would push
- * the line an operator is reading off the screen.
- *
- * Each packet prints its source and destination node, both ports, the priority
- * and the flags. Tracing is per node, so a hop that drops traffic is found by
- * turning it on at each end and seeing which one stops reporting.
+ * Each line has the source and destination node and port, priority, flags and
+ * size. Off by default.
  *
  * @param enabled True to trace, false to stop.
  */
@@ -33,13 +27,12 @@ struct kfsw_csp_info {
 	uint16_t address;       /**< This node's CSP address. */
 	const char *hostname;   /**< Name reported to a remote identity request. */
 	const char *model;      /**< Hardware or composition this image was built for. */
-	const char *revision;   /**< Image revision, so ground can confirm what is running. */
+	const char *revision;   /**< Image revision. */
 	const char *build_date; /**< Date this image was compiled. */
 	const char *build_time; /**< Time this image was compiled. */
 	bool initialized;       /**< libcsp and its interfaces are up. */
 	bool router_running;    /**< The router thread is started and forwarding. */
-	size_t free_buffers;    /**< Packet buffers still in the pool; zero means the
-				   link is saturated. */
+	size_t free_buffers;    /**< Free packet buffers. */
 };
 
 /** One registered link, and what it has carried since boot. */
@@ -48,13 +41,12 @@ struct kfsw_csp_interface_info {
 	uint16_t address;         /**< Address this node answers to on this link. */
 	uint16_t prefix_length;   /**< Bits of the address that must match, over 14-bit
 				     node IDs. */
-	bool is_default;          /**< Carries anything no other route claims. */
+	bool is_default;          /**< Used for addresses no other route matches. */
 	uint32_t tx_packets;      /**< Packets handed to the driver. */
 	uint32_t rx_packets;      /**< Packets assembled from the driver. */
 	uint32_t tx_errors;       /**< Sends the driver refused. */
 	uint32_t rx_errors;       /**< Frames that arrived malformed or too large. */
-	uint32_t dropped_packets; /**< Packets discarded for want of a buffer or a
-				     route. */
+	uint32_t dropped_packets; /**< Packets dropped for lack of a buffer or a route. */
 };
 
 /** One entry of the static routing table. */
@@ -63,7 +55,7 @@ struct kfsw_csp_route_info {
 	uint16_t prefix_length;     /**< Bits of it that must match; 0 is the default route. */
 	const char *interface_name; /**< Link the packet leaves by. */
 	uint16_t via;               /**< Link-layer next hop, meaningful only when has_via. */
-	bool has_via;               /**< The entry names a next hop rather than sending direct. */
+	bool has_via;               /**< The entry has a next hop. */
 };
 
 typedef bool (*kfsw_csp_interface_visitor_t)(const struct kfsw_csp_interface_info *interface_info,
@@ -75,40 +67,29 @@ typedef bool (*kfsw_csp_route_visitor_t)(const struct kfsw_csp_route_info *route
 /** Maximum route-table string length accepted by the pinned libcsp parser. */
 #define KFSW_CSP_ROUTE_TABLE_MAX_LENGTH 99U
 
-/** Initialize libcsp, the configured interfaces, and static routes once. */
 /**
- * @brief Set the revision this node reports, before CSP is initialised.
- *
- * The revision is what ground reads back to confirm which image is running, so
- * it has to name the build rather than a fixed string. The value comes from
- * the composition
+ * @brief Set the revision this node reports. Call before CSP is initialised.
  */
 void kfsw_csp_set_revision(const char *revision);
 
+/** Initialize libcsp, the configured interfaces, and static routes once. */
 int kfsw_csp_init(void);
 
-/** Start the single K-FSW-owned CSP router thread. */
+/** Start the CSP router thread. */
 int kfsw_csp_start(void);
 
 /** Copy the current local CSP identity information. */
 void kfsw_csp_get_info(struct kfsw_csp_info *info);
 
 /**
- * @brief Hand each registered interface to @p visitor, one at a time.
- *
- * The list is libcsp's and is walked under its lock, so returning it as an
- * array would mean sizing a buffer for a list that can change and reading it
- * after the lock was dropped. Each entry is handed out instead.
+ * @brief Call @p visitor for each registered interface, under libcsp's lock.
  *
  * Return false from @p visitor to stop early.
  */
 void kfsw_csp_visit_interfaces(kfsw_csp_interface_visitor_t visitor, void *context);
 
 /**
- * @brief Hand each configured static route to @p visitor, one at a time.
- *
- * Same contract as kfsw_csp_visit_interfaces(): the table is libcsp's, and
- * return false to stop early.
+ * @brief Call @p visitor for each static route. Return false to stop early.
  */
 void kfsw_csp_visit_routes(kfsw_csp_route_visitor_t visitor, void *context);
 
@@ -148,8 +129,7 @@ struct kfsw_csp_clock {
 void kfsw_csp_clock_get(struct kfsw_csp_clock *clock);
 
 /**
- * @brief Whether a reading is a time somebody actually set.
- *
+ * @brief Whether a clock reading has been set.
  */
 bool kfsw_csp_clock_is_set(const struct kfsw_csp_clock *clock);
 
@@ -164,28 +144,20 @@ int kfsw_csp_clock_set(const struct kfsw_csp_clock *clock);
 /**
  * @brief Read another node's RTC clock.
  *
- * Returns 0 and fills @p clock, or a negative errno. A node that has never
- * been set answers zero seconds rather than failing.
+ * Returns 0 and fills @p clock, or a negative errno. A node whose clock was
+ * never set answers zero seconds.
  */
 int kfsw_csp_clock_read(uint16_t node, uint32_t timeout_ms, struct kfsw_csp_clock *clock);
 
 /**
- * @brief Give another node the time.
+ * @brief Set another node's clock.
  *
- * The reply carries the clock as the node reads it back, so the caller can see
- * what actually landed rather than assuming. What comes back is filled into
- * @p clock.
- *
- * The propagation delay is not compensated. Over a slow radio the receiving
- * node ends up late by roughly the one-way time. This can be corrected by some
- * radios.
+ * @p clock is filled with the time the node reads back after setting it. The
+ * link delay is not compensated.
  */
 int kfsw_csp_clock_write(uint16_t node, uint32_t timeout_ms, struct kfsw_csp_clock *clock);
 
-/* Field sizes are stated here rather than taken from libcsp so that a caller
- * does not have to include the protocol headers. They are checked against the
- * wire message where the two meet.
- */
+/* Field sizes are defined here so callers don't need the libcsp headers. */
 #define KFSW_CSP_IDENTITY_HOSTNAME_SIZE 21U
 #define KFSW_CSP_IDENTITY_MODEL_SIZE 31U
 #define KFSW_CSP_IDENTITY_REVISION_SIZE 21U

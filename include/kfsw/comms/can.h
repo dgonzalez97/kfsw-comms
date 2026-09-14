@@ -10,16 +10,8 @@ extern "C" {
 
 /**
  * @file
- * CSP over CAN.
- *
- * A CAN frame carries at most eight bytes, so libcsp fragments a CSP packet
- * across several of them with its own protocol (CFP). That is libcsp's job;
- * this file owns which controller is used, at what bitrate, and when it starts.
- *
- * The controller comes from the `kfsw,csp-can` chosen node, so reusable code
- * names no board and no peripheral. The same path serves a real controller on
- * a board and Zephyr's native-linux CAN device on a host, which is what lets a
- * ground node reach a USB adapter without a second implementation.
+ * CSP over CAN. The controller comes from the `kfsw,csp-can` chosen node, on a
+ * board or through SocketCAN on a host.
  */
 
 /** Longest interface name libcsp's text parser accepts, plus a terminator. */
