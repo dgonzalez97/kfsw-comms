@@ -18,7 +18,7 @@ child-binding:
 
     address:
       type: int
-      description: CSP address owned by this interface; defaults to KFSW_CSP_ADDRESS
+      description: CSP address of this interface; defaults to KFSW_CSP_ADDRESS
 
     prefix-length:
       type: int

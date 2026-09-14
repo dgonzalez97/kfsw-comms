@@ -29,10 +29,7 @@ static bool initialized;
 static bool router_running;
 static K_MUTEX_DEFINE(lifecycle_lock);
 
-/* What `csp ident` reports as the revision. The compiled default stands until
- * the composition replaces it, so a build that never calls the setter still
- * answers something rather than nothing.
- */
+/* Revision reported by csp ident until the composition sets it. */
 static const char *revision = CONFIG_KFSW_CSP_REVISION;
 
 void kfsw_csp_set_revision(const char *value)
@@ -43,11 +40,7 @@ void kfsw_csp_set_revision(const char *value)
 	revision = value;
 }
 
-/*
- * Self-addressed traffic uses libcsp's loopback, given this node's address. It
- * is short-circuited before the routing table is consulted, so it cannot
- * conflict with an interface that also covers the address.
- */
+/* Loopback handles traffic to this node's address before the route table. */
 static void configure_loopback_address(void)
 {
 	csp_if_lo.addr = CONFIG_KFSW_CSP_ADDRESS;
@@ -67,9 +60,8 @@ static int check_route_table(const char *route_table, size_t *entry_count)
 		return entries;
 	}
 	/*
-	 * This pinned CIDR implementation advances and then clamps its insertion
-	 * index, so one declared slot is not safely iterable. Reject that boundary
-	 * before csp_rtable_load() can silently hide the last route.
+	 * The pinned CIDR table clamps its insertion index, so a table that uses every
+	 * slot would lose its last route in csp_rtable_load().
 	 */
 	if (entries >= CONFIG_CSP_RTABLE_SIZE) {
 		return CSP_ERR_NOMEM;
@@ -94,8 +86,7 @@ static int load_route_table(const char *route_table)
 	csp_rtable_clear();
 	result = csp_rtable_load(route_table);
 	if (result < 0 || (size_t)result != expected_entries) {
-		/* Never expose a partially loaded table: no routes is a state an
-		 * operator can diagnose, half a table is not. */
+		/* Clear a partially loaded table. */
 		csp_rtable_clear();
 		return result < 0 ? result : CSP_ERR_INVAL;
 	}
@@ -178,9 +169,7 @@ int kfsw_csp_init(void)
 #endif
 
 #if CONFIG_KFSW_CSP_CAN
-	/* Opened before the routes are loaded, because a route naming this
-	 * interface is rejected if the interface is not registered yet.
-	 */
+	/* Open before loading routes that name this interface. */
 	result = kfsw_can_open();
 	if (result != 0) {
 		return CSP_ERR_DRIVER;
@@ -199,10 +188,7 @@ int kfsw_csp_init(void)
 		return result;
 	}
 
-	/* The management port answers "what are you", which a ping cannot. It is
-	 * how ground confirms which image is running after an update, so a node
-	 * that cannot be asked cannot be verified remotely.
-	 */
+	/* Management port, which answers csp ident. */
 	result = csp_bind_callback(csp_service_handler, CSP_CMP);
 	if (result != CSP_ERR_NONE) {
 		return result;
@@ -318,11 +304,8 @@ void kfsw_csp_visit_routes(kfsw_csp_route_visitor_t visitor, void *context)
 
 int kfsw_csp_route_table_check(const char *route_table, size_t *entry_count)
 {
-	/* The parser resolves every interface name against the registered list,
-	 * even when only checking, so before the interfaces exist it cannot
-	 * tell a bad table from a table it is too early to judge. Say which,
-	 * rather than calling both invalid: a caller registering a compiled
-	 * default has to be able to distinguish "wrong" from "not yet".
+	/* Before the interfaces exist the parser can't resolve names, so report
+	 * -ENETDOWN instead of an invalid table.
 	 */
 	if (!initialized) {
 		return -ENETDOWN;
@@ -334,16 +317,9 @@ int kfsw_csp_route_table_check(const char *route_table, size_t *entry_count)
 /** Longest trace line libcsp emits, with its colour sequences and a terminator. */
 #define KFSW_CSP_TRACE_LINE_MAX 192U
 
-/* libcsp declares this weak so a port can decide where its diagnostics go.
- * Taking it here puts them on the same console as everything else and tags
- * them, so a trace is recognisable in a capture that also carries log lines.
- *
- * It is formatted into a buffer rather than printed piecewise for one reason:
- * libcsp closes its colour *after* the newline, and console writes are not
- * serialised against the shell. Output that lands between the colour and the
- * reset leaves the terminal coloured, and every later shell line inherits it,
- * so a parameter an operator asked for comes back in the trace's colour. The
- * newline is moved to the end here, which keeps the colour on this line alone.
+/* libcsp's weak debug print hook. Lines are tagged [DEBUG] and built in a
+ * buffer with the newline moved after the colour reset, so the colour doesn't
+ * carry over into later shell output.
  */
 void csp_print_func(const char *fmt, ...)
 {
@@ -360,9 +336,7 @@ void csp_print_func(const char *fmt, ...)
 		return;
 	}
 
-	/* A truncated trace line is still worth printing: it names the packet,
-	 * which is what the line is read for.
-	 */
+	/* Print truncated lines too. */
 	if ((size_t)length >= sizeof(line)) {
 		line[sizeof(line) - 1U] = '\0';
 	}
@@ -387,19 +361,8 @@ bool kfsw_csp_get_packet_trace(void)
 
 #if CONFIG_KFSW_CSP_CLOCK_RTC
 /*
- * Where a node's idea of the time comes from.
- *
- * libcsp ships weak hooks that read the POSIX realtime clock, which on Zephyr
- * is an offset held in RAM: every reset puts it back to zero, so a node that
- * reboots on a watchdog comes back not knowing when it is. Everything gated on
- * a valid clock then stays quiet — scheduled collection, beacons — until a
- * ground station is in view to set it, which is the worst moment to need one.
- *
- * These override the weak hooks with the board's RTC, whose counter a reset
- * does not touch. They live in this file rather than beside the rest of the
- * clock code for a linker reason worth stating: a strong definition only beats
- * a weak one if its object is actually pulled out of the archive, and nothing
- * else would have referenced a file that contains only overrides.
+ * RTC-backed versions of libcsp's weak clock hooks, so the time survives a
+ * reset. They are in this file so the linker pulls them in.
  */
 void csp_clock_get_time(csp_timestamp_t *time)
 {
@@ -409,9 +372,7 @@ void csp_clock_get_time(csp_timestamp_t *time)
 		return;
 	}
 	time->tv_nsec = 0U;
-	/* A clock present but never set reads as zero, which is what every
-	 * caller already treats as "nobody has said what time it is".
-	 */
+	/* An unset clock reads as zero. */
 	time->tv_sec = (kfsw_wallclock_get(&seconds) == 0) ? (uint32_t)seconds : 0U;
 }
 
@@ -431,10 +392,7 @@ void kfsw_csp_clock_get(struct kfsw_csp_clock *clock)
 	if (clock == NULL) {
 		return;
 	}
-	/* libcsp's own hook, so a node reports the same time to the shell and
-	 * to a remote caller. Two readings of one clock that disagree would be
-	 * worse than one that is merely unset.
-	 */
+	/* Same hook as libcsp, so the shell and remote callers see the same time. */
 	csp_clock_get_time(&now);
 	clock->seconds = (int32_t)now.tv_sec;
 	clock->nanoseconds = now.tv_nsec;
@@ -471,10 +429,7 @@ static int clock_transaction(uint16_t node, uint32_t timeout_ms, struct kfsw_csp
 		return -ENETDOWN;
 	}
 
-	/* Zero seconds is how the protocol says "only tell me the time". The
-	 * far side sets nothing and answers with what it has, which is why one
-	 * message serves both directions.
-	 */
+	/* Zero seconds means read only; the other node answers with its time. */
 	if (set) {
 		message.clock.tv_sec = htobe32((uint32_t)clock->seconds);
 		message.clock.tv_nsec = htobe32(clock->nanoseconds);
@@ -498,12 +453,7 @@ int kfsw_csp_clock_read(uint16_t node, uint32_t timeout_ms, struct kfsw_csp_cloc
 int kfsw_csp_clock_write(uint16_t node, uint32_t timeout_ms, struct kfsw_csp_clock *clock)
 {
 	if (!kfsw_csp_clock_is_set(clock)) {
-		/* Refused here rather than sent. Zero means "read" on the wire,
-		 * so a node asked to adopt an unset clock would answer
-		 * cheerfully and change nothing; and handing over an epoch
-		 * nobody set would spread a wrong date rather than a missing
-		 * one.
-		 */
+		/* Don't send an unset clock: zero means read on the wire. */
 		return -EINVAL;
 	}
 	return clock_transaction(node, timeout_ms, clock, true);

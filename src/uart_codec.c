@@ -48,7 +48,7 @@ static int transmit(csp_iface_t *iface, uint16_t via, csp_packet_t *packet, int 
 {
 	int result = codec->encode(packet);
 
-	/* libcsp frees rejected TX packets. Successful next-hop calls own them. */
+	/* libcsp frees rejected TX packets; the next-hop call frees accepted ones. */
 	return result == 0 ? original_tx(iface, via, packet, from_me) : CSP_ERR_TX;
 }
 

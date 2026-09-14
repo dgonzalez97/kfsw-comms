@@ -10,9 +10,7 @@
 
 #include <kfsw/comms/can.h>
 
-/* No logging here. This layer sits below the log service and must not reach up
- * into it, so a failure is returned and the composition reports it.
- */
+/* No logging here: this layer is below the log service. */
 
 #define KFSW_CAN_NODE DT_CHOSEN(kfsw_csp_can)
 
@@ -55,11 +53,7 @@ int kfsw_can_open(void)
 		return -EINVAL;
 	}
 
-	/* A filter address of zero with a zero mask accepts every frame, which
-	 * is what a routing node wants: libcsp decides what belongs to it from
-	 * the CFP header, and a controller-level filter would drop traffic this
-	 * node is meant to forward.
-	 */
+	/* Accept every frame; libcsp filters by the CFP header. */
 	result = csp_can_open_and_add_interface(can_device, CONFIG_KFSW_CSP_CAN_INTERFACE_NAME,
 						CONFIG_KFSW_CSP_ADDRESS, applied_bitrate, 0U, 0U,
 						&can_interface);
@@ -100,10 +94,7 @@ int kfsw_can_set_bitrate(uint32_t bitrate)
 		return 0;
 	}
 	if (can_interface == NULL) {
-		/* Nothing is open yet, so the value is simply what the next
-		 * open will use. Refusing here would make the parameter
-		 * unsettable on a node whose bus has not come up.
-		 */
+		/* Not open yet: keep the value for the next open. */
 		applied_bitrate = bitrate;
 		return 0;
 	}
