@@ -359,6 +359,86 @@ bool kfsw_csp_get_packet_trace(void)
 	return csp_dbg_packet_print != 0U;
 }
 
+void kfsw_csp_get_counters(struct kfsw_csp_counters *counters)
+{
+	if (counters == NULL) {
+		return;
+	}
+
+	counters->buffer_out = csp_dbg_buffer_out;
+	counters->conn_out = csp_dbg_conn_out;
+	counters->conn_overflow = csp_dbg_conn_ovf;
+	counters->conn_noroute = csp_dbg_conn_noroute;
+	counters->invalid_reply = csp_dbg_inval_reply;
+	counters->last_error = csp_dbg_errno;
+	counters->last_can_error = csp_dbg_can_errno;
+}
+
+void kfsw_csp_clear_counters(void)
+{
+	csp_dbg_buffer_out = 0U;
+	csp_dbg_conn_out = 0U;
+	csp_dbg_conn_ovf = 0U;
+	csp_dbg_conn_noroute = 0U;
+	csp_dbg_inval_reply = 0U;
+	csp_dbg_errno = 0U;
+	csp_dbg_can_errno = 0U;
+}
+
+const char *kfsw_csp_error_name(uint8_t code)
+{
+	switch (code) {
+	case 0U:
+		return "none";
+	case CSP_DBG_ERR_CORRUPT_BUFFER:
+		return "corrupt buffer";
+	case CSP_DBG_ERR_MTU_EXCEEDED:
+		return "MTU exceeded";
+	case CSP_DBG_ERR_ALREADY_FREE:
+		return "buffer already free";
+	case CSP_DBG_ERR_REFCOUNT:
+		return "buffer reference count";
+	case CSP_DBG_ERR_INVALID_RTABLE_ENTRY:
+		return "invalid route entry";
+	case CSP_DBG_ERR_UNSUPPORTED:
+		return "unsupported";
+	case CSP_DBG_ERR_INVALID_BIND_PORT:
+		return "invalid bind port";
+	case CSP_DBG_ERR_PORT_ALREADY_IN_USE:
+		return "port in use";
+	case CSP_DBG_ERR_ALREADY_CLOSED:
+		return "connection already closed";
+	case CSP_DBG_ERR_INVALID_POINTER:
+		return "invalid pointer";
+	case CSP_DBG_ERR_CLOCK_SET_FAIL:
+		return "clock set refused";
+	default:
+		return "unknown";
+	}
+}
+
+const char *kfsw_csp_can_error_name(uint8_t code)
+{
+	switch (code) {
+	case 0U:
+		return "none";
+	case CSP_DBG_CAN_ERR_FRAME_LOST:
+		return "frame lost";
+	case CSP_DBG_CAN_ERR_RX_OVF:
+		return "receive overflow";
+	case CSP_DBG_CAN_ERR_RX_OUT:
+		return "no receive buffer";
+	case CSP_DBG_CAN_ERR_SHORT_BEGIN:
+		return "short first frame";
+	case CSP_DBG_CAN_ERR_INCOMPLETE:
+		return "incomplete packet";
+	case CSP_DBG_CAN_ERR_UNKNOWN:
+		return "unknown frame";
+	default:
+		return "unknown";
+	}
+}
+
 #if CONFIG_KFSW_CSP_CLOCK_RTC
 /*
  * RTC-backed versions of libcsp's weak clock hooks, so the time survives a
