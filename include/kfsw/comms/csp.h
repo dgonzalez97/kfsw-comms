@@ -49,6 +49,21 @@ struct kfsw_csp_interface_info {
 	uint32_t dropped_packets; /**< Packets dropped for lack of a buffer or a route. */
 };
 
+/**
+ * libcsp's own error counters. They are 8-bit and wrap, and libcsp updates
+ * them without locking, so read them as an indication and not as an exact
+ * count.
+ */
+struct kfsw_csp_counters {
+	uint8_t buffer_out;     /**< Times no packet buffer was free. */
+	uint8_t conn_out;       /**< Times no connection slot was free. */
+	uint8_t conn_overflow;  /**< Packets dropped by a full connection queue. */
+	uint8_t conn_noroute;   /**< Packets dropped with no route to the destination. */
+	uint8_t invalid_reply;  /**< Replies that matched no open connection. */
+	uint8_t last_error;     /**< Code of the last libcsp error. */
+	uint8_t last_can_error; /**< Code of the last CAN framing error. */
+};
+
 /** One entry of the static routing table. */
 struct kfsw_csp_route_info {
 	uint16_t address;           /**< Destination this entry matches. */
@@ -92,6 +107,18 @@ void kfsw_csp_visit_interfaces(kfsw_csp_interface_visitor_t visitor, void *conte
  * @brief Call @p visitor for each static route. Return false to stop early.
  */
 void kfsw_csp_visit_routes(kfsw_csp_route_visitor_t visitor, void *context);
+
+/** Copy libcsp's error counters. Safe before initialization; they read zero. */
+void kfsw_csp_get_counters(struct kfsw_csp_counters *counters);
+
+/** Set every error counter back to zero, to start a bench run from a clean state. */
+void kfsw_csp_clear_counters(void);
+
+/** Name of a @ref kfsw_csp_counters last_error code, or "unknown". */
+const char *kfsw_csp_error_name(uint8_t code);
+
+/** Name of a @ref kfsw_csp_counters last_can_error code, or "unknown". */
+const char *kfsw_csp_can_error_name(uint8_t code);
 
 /**
  * @brief Check a route table without applying it.
