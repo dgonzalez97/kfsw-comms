@@ -108,6 +108,22 @@ void kfsw_csp_visit_interfaces(kfsw_csp_interface_visitor_t visitor, void *conte
  */
 void kfsw_csp_visit_routes(kfsw_csp_route_visitor_t visitor, void *context);
 
+/**
+ * @brief Called for each packet the router accepts, from the router thread.
+ *
+ * @param source_node Node the packet came from.
+ * @param destination_port Port it was addressed to.
+ */
+typedef void (*kfsw_csp_inbound_hook_t)(uint16_t source_node, uint8_t destination_port);
+
+/**
+ * @brief Watch inbound packets. Pass NULL to stop.
+ *
+ * The hook runs on the router thread, so it must return quickly and must not
+ * block. One hook at a time; a second call replaces the first.
+ */
+void kfsw_csp_set_inbound_hook(kfsw_csp_inbound_hook_t hook);
+
 /** Copy libcsp's error counters. Safe before initialization; they read zero. */
 void kfsw_csp_get_counters(struct kfsw_csp_counters *counters);
 
