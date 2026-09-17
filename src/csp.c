@@ -359,6 +359,25 @@ bool kfsw_csp_get_packet_trace(void)
 	return csp_dbg_packet_print != 0U;
 }
 
+static kfsw_csp_inbound_hook_t inbound_hook;
+
+void kfsw_csp_set_inbound_hook(kfsw_csp_inbound_hook_t hook)
+{
+	inbound_hook = hook;
+}
+
+/* libcsp's weak hook, called by the router for every packet it accepts. */
+void csp_input_hook(csp_iface_t *iface, csp_packet_t *packet)
+{
+	const kfsw_csp_inbound_hook_t hook = inbound_hook;
+
+	ARG_UNUSED(iface);
+
+	if ((hook != NULL) && (packet != NULL)) {
+		hook(packet->id.src, packet->id.dport);
+	}
+}
+
 void kfsw_csp_get_counters(struct kfsw_csp_counters *counters)
 {
 	if (counters == NULL) {
