@@ -567,6 +567,50 @@ static void copy_identity_field(char *destination, size_t destination_size, cons
 	destination[length] = '\0';
 }
 
+int kfsw_csp_interface_stats_read(uint16_t node, const char *name, uint32_t timeout_ms,
+				  struct kfsw_csp_interface_stats *stats)
+{
+	struct csp_cmp_if_stats_msg message = {0};
+	size_t length;
+
+	BUILD_ASSERT(KFSW_CSP_INTERFACE_NAME_SIZE == CSP_CMP_ROUTE_IFACE_LEN);
+	if ((name == NULL) || (stats == NULL) || (timeout_ms == 0U) ||
+	    (node >= (1UL << csp_id_get_host_bits()))) {
+		return -EINVAL;
+	}
+	length = strnlen(name, sizeof(message.interface));
+	if ((length == 0U) || (length == sizeof(message.interface))) {
+		return -EINVAL;
+	}
+	if (!initialized || !router_running) {
+		return -ENETDOWN;
+	}
+	memcpy(message.interface, name, length + 1U);
+	if (csp_cmp_if_stats(node, timeout_ms, &message) != CSP_ERR_NONE) {
+		return -ETIMEDOUT;
+	}
+	if ((message.type != CSP_CMP_REPLY) || (message.code != CSP_CMP_IF_STATS) ||
+	    (memcmp(message.interface, name, length + 1U) != 0)) {
+		return -EBADMSG;
+	}
+
+	struct kfsw_csp_interface_stats result = {
+		.tx_packets = be32toh(message.tx),
+		.rx_packets = be32toh(message.rx),
+		.tx_errors = be32toh(message.tx_error),
+		.rx_errors = be32toh(message.rx_error),
+		.dropped_packets = be32toh(message.drop),
+		.auth_errors = be32toh(message.autherr),
+		.frame_errors = be32toh(message.frame),
+		.tx_bytes = be32toh(message.txbytes),
+		.rx_bytes = be32toh(message.rxbytes),
+		.interrupts = be32toh(message.irq),
+	};
+	memcpy(result.name, name, length + 1U);
+	*stats = result;
+	return 0;
+}
+
 int kfsw_csp_identify(uint16_t node, uint32_t timeout_ms, struct kfsw_csp_identity *identity)
 {
 	const unsigned int host_bits = csp_id_get_host_bits();

@@ -161,6 +161,35 @@ int kfsw_csp_route_table_apply(const char *route_table);
 /** Send a standard CSP ping using CRC32 and return its round-trip time. */
 int kfsw_csp_ping(uint16_t node, uint32_t timeout_ms, size_t payload_size, uint32_t *round_trip_ms);
 
+/** Interface names in CMP have ten characters and a terminator. */
+#define KFSW_CSP_INTERFACE_NAME_SIZE 11U
+
+/** A remote interface's counters since boot. Values can wrap at UINT32_MAX. */
+struct kfsw_csp_interface_stats {
+	char name[KFSW_CSP_INTERFACE_NAME_SIZE]; /**< Queried name, terminated. */
+	uint32_t tx_packets;                     /**< Packets sent. */
+	uint32_t rx_packets;                     /**< Packets received. */
+	uint32_t tx_errors;                      /**< Transmit errors. */
+	uint32_t rx_errors;                      /**< Receive errors. */
+	uint32_t dropped_packets;                /**< Dropped packets. */
+	uint32_t auth_errors;                    /**< Authentication errors. */
+	uint32_t frame_errors;                   /**< Framing errors. */
+	uint32_t tx_bytes;                       /**< Bytes sent. */
+	uint32_t rx_bytes;                       /**< Bytes received. */
+	uint32_t interrupts;                     /**< Driver interrupt count. */
+};
+
+/**
+ * @brief Read a named interface through CSP management.
+ *
+ * Returns 0, -EINVAL for invalid arguments, -ENETDOWN before router start,
+ * -ETIMEDOUT for no complete reply (including unknown interfaces), or -EBADMSG
+ * for an inconsistent reply. Output is unchanged on failure. The query itself
+ * contributes traffic; counters are an observation, not an atomic snapshot.
+ */
+int kfsw_csp_interface_stats_read(uint16_t node, const char *name, uint32_t timeout_ms,
+				  struct kfsw_csp_interface_stats *stats);
+
 struct kfsw_csp_clock {
 	int32_t seconds;
 	uint32_t nanoseconds;
