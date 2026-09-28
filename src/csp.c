@@ -317,10 +317,7 @@ int kfsw_csp_route_table_check(const char *route_table, size_t *entry_count)
 /** Longest trace line libcsp emits, with its colour sequences and a terminator. */
 #define KFSW_CSP_TRACE_LINE_MAX 192U
 
-/* libcsp's weak debug print hook. Lines are tagged [DEBUG] and built in a
- * buffer with the newline moved after the colour reset, so the colour doesn't
- * carry over into later shell output.
- */
+/* Reset colour before the newline to keep later shell output uncoloured. */
 void csp_print_func(const char *fmt, ...)
 {
 	char line[KFSW_CSP_TRACE_LINE_MAX];
