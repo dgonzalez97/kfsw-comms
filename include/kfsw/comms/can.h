@@ -24,7 +24,7 @@ extern "C" {
 #define KFSW_CAN_BITRATE_800K 800000U
 #define KFSW_CAN_BITRATE_1M 1000000U
 
-/** What the CAN link is doing, for the shell and the board table. */
+/** CAN configuration and interface state. */
 struct kfsw_can_info {
 	/** Interface name as libcsp knows it, empty when not opened. */
 	char interface_name[KFSW_CAN_INTERFACE_NAME_SIZE];
@@ -48,12 +48,12 @@ struct kfsw_can_info {
 int kfsw_can_open(void);
 
 /**
- * @brief Read what the CAN link is doing.
+ * @brief Read the CAN configuration and interface state.
  */
 void kfsw_can_get_info(struct kfsw_can_info *info);
 
 /**
- * @brief Whether a bitrate is one an operator may select.
+ * @brief Check whether a bitrate is supported.
  *
  * Exposed so a parameter validator can reject a bitrate before the
  * controller is opened.

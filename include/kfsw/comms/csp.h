@@ -22,7 +22,7 @@ void kfsw_csp_set_packet_trace(bool enabled);
 /** Whether packet tracing is currently on. */
 bool kfsw_csp_get_packet_trace(void);
 
-/** What this node answers when something asks it what it is. */
+/** Local CSP identity and router state. */
 struct kfsw_csp_info {
 	uint16_t address;       /**< This node's CSP address. */
 	const char *hostname;   /**< Name reported to a remote identity request. */
@@ -35,7 +35,7 @@ struct kfsw_csp_info {
 	size_t free_buffers;    /**< Free packet buffers. */
 };
 
-/** One registered link, and what it has carried since boot. */
+/** Interface configuration and counters since boot. */
 struct kfsw_csp_interface_info {
 	const char *name;         /**< Interface name, as a route table refers to it. */
 	uint16_t address;         /**< Address this node answers to on this link. */
@@ -50,9 +50,8 @@ struct kfsw_csp_interface_info {
 };
 
 /**
- * libcsp's own error counters. They are 8-bit and wrap, and libcsp updates
- * them without locking, so read them as an indication and not as an exact
- * count.
+ * libcsp error counters. These wrap at 255 and are updated without locking;
+ * readings may be inconsistent during traffic.
  */
 struct kfsw_csp_counters {
 	uint8_t buffer_out;     /**< Times no packet buffer was free. */
@@ -127,7 +126,7 @@ void kfsw_csp_set_inbound_hook(kfsw_csp_inbound_hook_t hook);
 /** Copy libcsp's error counters. Safe before initialization; they read zero. */
 void kfsw_csp_get_counters(struct kfsw_csp_counters *counters);
 
-/** Set every error counter back to zero, to start a bench run from a clean state. */
+/** Clear the error counters. */
 void kfsw_csp_clear_counters(void);
 
 /** Name of a @ref kfsw_csp_counters last_error code, or "unknown". */
@@ -236,7 +235,7 @@ int kfsw_csp_clock_write(uint16_t node, uint32_t timeout_ms, struct kfsw_csp_clo
 #define KFSW_CSP_IDENTITY_DATE_SIZE 13U
 #define KFSW_CSP_IDENTITY_TIME_SIZE 10U
 
-/** Identity a remote node reports about itself. Every field is terminated. */
+/** Remote CSP identity. Every field is NUL-terminated. */
 struct kfsw_csp_identity {
 	char hostname[KFSW_CSP_IDENTITY_HOSTNAME_SIZE];
 	char model[KFSW_CSP_IDENTITY_MODEL_SIZE];
