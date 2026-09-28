@@ -4,9 +4,9 @@ Communications for K-FSW: the CSP stack, its interfaces and the router. It
 uses [libcsp](https://github.com/libcsp/libcsp), the CubeSat Space Protocol
 library.
 
-libcsp is a separate west project at `third_party/libcsp`, pinned by the
-composition to `097a039701c85e4ceb98e91f380810662e23878a`.
-`zephyr/module.yml` declares the Zephyr module.
+The composition pins the [K-FSW libcsp fork](https://github.com/dgonzalez97/kfsw-libcsp)
+at `third_party/libcsp`. Check `k-fsw/west.yml` for the revision and the fork's
+`KFSW.md` for its changes. `zephyr/module.yml` declares the Zephyr module.
 
 Two kinds of link go through the same router, and the routes decide which one
 reaches each destination:
@@ -109,6 +109,24 @@ the loaded table doesn't match the checked one the table is cleared.
 Routes can't be changed at runtime or saved. `kfsw_csp_route_table_check()`
 checks a table without loading it, and `kfsw_csp_visit_routes()` lists the
 routes.
+
+## Radio packet protection
+
+`KFSW_CSP_UART_CODEC` lets the radio module protect one named KISS interface.
+The module owns the key, sessions and encryption settings. Comms queues
+received packets for decoding outside the UART interrupt handler and passes
+accepted packets to the router.
+
+Transmit encoding runs in the sending thread. The codec keeps libcsp's KISS
+framing and packet ownership; it does not protect other interfaces.
+
+## Diagnostics
+
+`kfsw_csp_visit_interfaces()` reads local interface counters.
+`kfsw_csp_interface_stats_read()` queries a named interface on another node
+through CMP.
+Counts can wrap and change during a read. A timeout does not distinguish an
+unknown interface from a lost request or reply.
 
 ## Packet buffers
 
