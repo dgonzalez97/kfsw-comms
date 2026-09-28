@@ -8,8 +8,7 @@ The composition pins the [K-FSW libcsp fork](https://github.com/dgonzalez97/kfsw
 at `third_party/libcsp`. Check `k-fsw/west.yml` for the revision and the fork's
 `KFSW.md` for its changes. `zephyr/module.yml` declares the Zephyr module.
 
-Two kinds of link go through the same router, and the routes decide which one
-reaches each destination:
+Routes select a UART/KISS or CAN interface for each destination:
 
 ```text
   UART / KISS   a serial line, or a radio that behaves like one
@@ -139,7 +138,7 @@ K-FSW follows libcsp's zero-copy rules:
 - interfaces pass complete packets to the router queue, which routes or frees
   them;
 - when the pool or a queue is full, the allocation fails or the packet is
-  dropped and counted. Nothing retries forever or grows without a limit.
+  dropped and counted.
 
 ## License
 
