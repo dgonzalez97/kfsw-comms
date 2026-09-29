@@ -90,9 +90,9 @@ typedef bool (*kfsw_csp_route_visitor_t)(const struct kfsw_csp_route_info *route
 /**
  * Largest application payload that survives every K-FSW transport.
  *
- * A service that fills a packet to the brim checks against this and not
- * CSP_BUFFER_SIZE, because the encrypted UHF link is the tightest of them and
- * silently drops anything longer.
+ * A service that sizes a full packet checks against this and not
+ * CSP_BUFFER_SIZE: the encrypted UHF link is the tightest and drops anything
+ * longer without reporting it.
  */
 #define KFSW_CSP_PAYLOAD_MAX (CONFIG_CSP_BUFFER_SIZE - KFSW_CSP_SECURE_OVERHEAD)
 
