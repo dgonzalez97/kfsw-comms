@@ -82,6 +82,21 @@ typedef bool (*kfsw_csp_route_visitor_t)(const struct kfsw_csp_route_info *route
 #define KFSW_CSP_ROUTE_TABLE_MAX_LENGTH 99U
 
 /**
+ * Framing the encrypted UHF link adds inside one CSP buffer: a 12-byte header,
+ * a 16-byte tag and a 4-byte checksum.
+ */
+#define KFSW_CSP_SECURE_OVERHEAD 32U
+
+/**
+ * Largest application payload that survives every K-FSW transport.
+ *
+ * A service that fills a packet to the brim checks against this and not
+ * CSP_BUFFER_SIZE, because the encrypted UHF link is the tightest of them and
+ * silently drops anything longer.
+ */
+#define KFSW_CSP_PAYLOAD_MAX (CONFIG_CSP_BUFFER_SIZE - KFSW_CSP_SECURE_OVERHEAD)
+
+/**
  * @brief Set the revision this node reports. Call before CSP is initialised.
  */
 void kfsw_csp_set_revision(const char *revision);
