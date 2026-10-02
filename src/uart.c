@@ -306,16 +306,6 @@ int kfsw_uart_open_all(void)
 	return CSP_ERR_NONE;
 }
 
-size_t kfsw_uart_count(void)
-{
-	return ARRAY_SIZE(uart_configs);
-}
-
-const char *kfsw_uart_first_interface_name(void)
-{
-	return uart_configs[0].interface_name;
-}
-
 static void get_info_at(size_t index, struct kfsw_uart_info *info)
 {
 	const struct kfsw_uart_config *config = &uart_configs[index];

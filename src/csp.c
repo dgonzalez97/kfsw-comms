@@ -1,7 +1,6 @@
 #include <zephyr/kernel.h>
 
 #include <endian.h>
-#include <stdarg.h>
 #include <errno.h>
 #include <string.h>
 
@@ -115,23 +114,14 @@ int kfsw_csp_route_table_apply(const char *route_table)
 
 static int configure_routes(void)
 {
-	const char *const route_table = CONFIG_KFSW_CSP_ROUTE_TABLE;
+	const char *route_table = CONFIG_KFSW_CSP_ROUTE_TABLE;
 
-	if (route_table[0] != '\0') {
-		return load_route_table(route_table);
+	/* Nothing leaves the node unless the composition names the link. */
+	if (route_table[0] == '\0') {
+		route_table = "0/0 LOOP";
 	}
 
-#if CONFIG_KFSW_CSP_KISS_UART
-	if (kfsw_uart_count() != 1U) {
-		/* Selecting the first link implicitly is unsafe with multiple links. */
-		return CSP_ERR_INVAL;
-	}
-
-	return csp_rtable_set(0, 0, csp_iflist_get_by_name(kfsw_uart_first_interface_name()),
-			      CSP_NO_VIA_ADDRESS);
-#else
-	return CSP_ERR_NONE;
-#endif
+	return load_route_table(route_table);
 }
 
 static void kfsw_csp_router(void *arg1, void *arg2, void *arg3)
@@ -312,38 +302,6 @@ int kfsw_csp_route_table_check(const char *route_table, size_t *entry_count)
 	}
 
 	return check_route_table(route_table, entry_count);
-}
-
-/** Longest trace line libcsp emits, with its colour sequences and a terminator. */
-#define KFSW_CSP_TRACE_LINE_MAX 192U
-
-/* Reset colour before the newline to keep later shell output uncoloured. */
-void csp_print_func(const char *fmt, ...)
-{
-	char line[KFSW_CSP_TRACE_LINE_MAX];
-	char *newline;
-	va_list args;
-	int length;
-
-	va_start(args, fmt);
-	length = vsnprintk(line, sizeof(line), fmt, args);
-	va_end(args);
-
-	if (length <= 0) {
-		return;
-	}
-
-	/* Print truncated lines too. */
-	if ((size_t)length >= sizeof(line)) {
-		line[sizeof(line) - 1U] = '\0';
-	}
-
-	newline = strchr(line, '\n');
-	if (newline != NULL) {
-		(void)memmove(newline, newline + 1, strlen(newline + 1) + 1U);
-	}
-
-	printk("[DEBUG] %s\033[0m\n", line);
 }
 
 void kfsw_csp_set_packet_trace(bool enabled)

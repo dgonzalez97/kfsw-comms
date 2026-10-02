@@ -38,9 +38,9 @@ config KFSW_CSP_ROUTE_TABLE
 	  Optional libcsp-native route table loaded after all interfaces are
 	  registered. The format is a comma-separated list of
 	  "destination[/prefix-length] interface [via]" entries. An empty value
-	  preserves the legacy direct 0/0 route through the first KISS/UART
-	  interface. Multi-interface compositions must provide an explicit table.
-	  The pinned libcsp parser accepts at most 99 characters.
+	  loads "0/0 LOOP": the node reaches only itself until the composition
+	  names its links, for example "0/0 KISS". The pinned libcsp parser
+	  accepts at most 99 characters.
 
 config KFSW_CSP_KISS_UART
 	bool "CSP KISS interface over a Zephyr UART"
