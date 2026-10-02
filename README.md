@@ -47,7 +47,7 @@ routing node has to see traffic for other nodes too.
 ## Several UART/KISS interfaces
 
 A single-link composition uses a `kfsw,csp-uart` chosen node, named `KISS`, and
-gets a `0/0 KISS` route when `KFSW_CSP_ROUTE_TABLE` is empty.
+sets `KFSW_CSP_ROUTE_TABLE="0/0 KISS"`.
 
 With several links, the UARTs are children of one `kfsw,csp-kiss-uarts` node.
 Each child has its own UART, interface name, address, prefix length, framing
@@ -90,6 +90,9 @@ comma-separated list:
 destination[/prefix-length] interface [via], next-entry
 10/14 KISS_1,11/14 KISS_2 11
 ```
+
+An empty table loads `0/0 LOOP`, so a node built without one reaches only
+itself. Links are named by the composition, never picked by start order.
 
 CSP v2 node IDs are 14 bits and the prefix length counts those bits: `/14` is
 one node, `/0` is the default route, and no prefix means `/14`. The longest

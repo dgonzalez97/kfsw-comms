@@ -115,23 +115,14 @@ int kfsw_csp_route_table_apply(const char *route_table)
 
 static int configure_routes(void)
 {
-	const char *const route_table = CONFIG_KFSW_CSP_ROUTE_TABLE;
+	const char *route_table = CONFIG_KFSW_CSP_ROUTE_TABLE;
 
-	if (route_table[0] != '\0') {
-		return load_route_table(route_table);
+	/* Nothing leaves the node unless the composition names the link. */
+	if (route_table[0] == '\0') {
+		route_table = "0/0 LOOP";
 	}
 
-#if CONFIG_KFSW_CSP_KISS_UART
-	if (kfsw_uart_count() != 1U) {
-		/* Selecting the first link implicitly is unsafe with multiple links. */
-		return CSP_ERR_INVAL;
-	}
-
-	return csp_rtable_set(0, 0, csp_iflist_get_by_name(kfsw_uart_first_interface_name()),
-			      CSP_NO_VIA_ADDRESS);
-#else
-	return CSP_ERR_NONE;
-#endif
+	return load_route_table(route_table);
 }
 
 static void kfsw_csp_router(void *arg1, void *arg2, void *arg3)
