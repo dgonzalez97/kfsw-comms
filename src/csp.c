@@ -1,7 +1,6 @@
 #include <zephyr/kernel.h>
 
 #include <endian.h>
-#include <stdarg.h>
 #include <errno.h>
 #include <string.h>
 
@@ -303,38 +302,6 @@ int kfsw_csp_route_table_check(const char *route_table, size_t *entry_count)
 	}
 
 	return check_route_table(route_table, entry_count);
-}
-
-/** Longest trace line libcsp emits, with its colour sequences and a terminator. */
-#define KFSW_CSP_TRACE_LINE_MAX 192U
-
-/* Reset colour before the newline to keep later shell output uncoloured. */
-void csp_print_func(const char *fmt, ...)
-{
-	char line[KFSW_CSP_TRACE_LINE_MAX];
-	char *newline;
-	va_list args;
-	int length;
-
-	va_start(args, fmt);
-	length = vsnprintk(line, sizeof(line), fmt, args);
-	va_end(args);
-
-	if (length <= 0) {
-		return;
-	}
-
-	/* Print truncated lines too. */
-	if ((size_t)length >= sizeof(line)) {
-		line[sizeof(line) - 1U] = '\0';
-	}
-
-	newline = strchr(line, '\n');
-	if (newline != NULL) {
-		(void)memmove(newline, newline + 1, strlen(newline + 1) + 1U);
-	}
-
-	printk("[DEBUG] %s\033[0m\n", line);
 }
 
 void kfsw_csp_set_packet_trace(bool enabled)
