@@ -376,8 +376,10 @@ int kfsw_uart_test_peer(uint16_t peer, uint32_t timeout_ms,
 		return CSP_ERR_INVAL;
 	}
 
+	/* A packet to this node's own address is delivered locally, whatever the route. */
 	route = csp_rtable_find_route(peer);
-	if (route == NULL || !managed_interface(route->iface)) {
+	if (route == NULL || !managed_interface(route->iface) ||
+	    csp_iflist_get_by_addr(peer) != NULL) {
 		return CSP_ERR_NOTSUP;
 	}
 
