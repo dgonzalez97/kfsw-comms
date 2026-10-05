@@ -28,8 +28,6 @@ struct kfsw_csp_info {
 	const char *hostname;   /**< Name reported to a remote identity request. */
 	const char *model;      /**< Hardware or composition this image was built for. */
 	const char *revision;   /**< Image revision. */
-	const char *build_date; /**< Date this image was compiled. */
-	const char *build_time; /**< Time this image was compiled. */
 	bool initialized;       /**< libcsp and its interfaces are up. */
 	bool router_running;    /**< The router thread is started and forwarding. */
 	size_t free_buffers;    /**< Free packet buffers. */
