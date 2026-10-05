@@ -14,6 +14,7 @@
 #include <csp/csp_rtable.h>
 #include <csp/interfaces/csp_if_lo.h>
 
+#include <kfsw/platform/time.h>
 #include <kfsw/platform/wallclock.h>
 #include <kfsw/comms/csp.h>
 #if CONFIG_KFSW_CSP_CAN
@@ -220,6 +221,8 @@ void kfsw_csp_get_info(struct kfsw_csp_info *info)
 	info->initialized = initialized;
 	info->router_running = router_running;
 	info->free_buffers = initialized ? csp_buffer_remaining() : 0;
+	info->libcsp = KFSW_LIBCSP_REVISION;
+	info->protocol = csp_conf.version;
 }
 
 void kfsw_csp_visit_interfaces(kfsw_csp_interface_visitor_t visitor, void *context)
@@ -582,22 +585,25 @@ int kfsw_csp_identify(uint16_t node, uint32_t timeout_ms, struct kfsw_csp_identi
 	return CSP_ERR_NONE;
 }
 
-int kfsw_csp_ping(uint16_t node, uint32_t timeout_ms, size_t payload_size, uint32_t *round_trip_ms)
+int kfsw_csp_ping(uint16_t node, uint32_t timeout_ms, size_t payload_size, uint32_t *round_trip_us)
 {
 	const unsigned int host_bits = csp_id_get_host_bits();
+	uint64_t start_us;
 	int elapsed_ms;
 
-	if (!initialized || !router_running || round_trip_ms == NULL ||
+	if (!initialized || !router_running || round_trip_us == NULL ||
 	    node >= (1UL << host_bits) || payload_size > CSP_BUFFER_SIZE) {
 		return CSP_ERR_INVAL;
 	}
 
-	*round_trip_ms = 0;
+	*round_trip_us = 0;
+	/* libcsp counts in system ticks, 10 ms on native_sim; time it here instead. */
+	start_us = kfsw_time_monotonic_us();
 	elapsed_ms = csp_ping(node, timeout_ms, (unsigned int)payload_size, CSP_O_CRC32);
 	if (elapsed_ms < 0) {
 		return CSP_ERR_TIMEDOUT;
 	}
 
-	*round_trip_ms = (uint32_t)elapsed_ms;
+	*round_trip_us = (uint32_t)MIN(kfsw_time_monotonic_us() - start_us, UINT32_MAX);
 	return CSP_ERR_NONE;
 }
