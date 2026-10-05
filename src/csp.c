@@ -221,6 +221,8 @@ void kfsw_csp_get_info(struct kfsw_csp_info *info)
 	info->initialized = initialized;
 	info->router_running = router_running;
 	info->free_buffers = initialized ? csp_buffer_remaining() : 0;
+	info->libcsp = KFSW_LIBCSP_REVISION;
+	info->protocol = csp_conf.version;
 }
 
 void kfsw_csp_visit_interfaces(kfsw_csp_interface_visitor_t visitor, void *context)

@@ -31,6 +31,8 @@ struct kfsw_csp_info {
 	bool initialized;       /**< libcsp and its interfaces are up. */
 	bool router_running;    /**< The router thread is started and forwarding. */
 	size_t free_buffers;    /**< Free packet buffers. */
+	const char *libcsp;     /**< libcsp tag, from git describe of the pinned fork. */
+	uint8_t protocol;       /**< CSP protocol version on the wire, 1 or 2. */
 };
 
 /** Interface configuration and counters since boot. */
