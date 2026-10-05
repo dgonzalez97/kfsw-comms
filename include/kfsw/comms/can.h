@@ -38,6 +38,14 @@ struct kfsw_can_info {
 	bool ready;
 };
 
+/** Outcome of a CAN link test. */
+struct kfsw_can_test_result {
+	/** Node that answered. */
+	uint16_t peer;
+	/** Round trip in microseconds. */
+	uint32_t round_trip_us;
+};
+
 /**
  * @brief Open the chosen CAN controller and register it with libcsp.
  *
@@ -69,6 +77,14 @@ bool kfsw_can_bitrate_supported(uint32_t bitrate);
  * controller is open.
  */
 int kfsw_can_set_bitrate(uint32_t bitrate);
+
+/**
+ * @brief Ping a peer whose route leaves through the CAN interface.
+ *
+ * Returns CSP_ERR_NOTSUP when the route to the peer is not CAN, or the peer is
+ * this node and the ping would never reach the bus.
+ */
+int kfsw_can_test_peer(uint16_t peer, uint32_t timeout_ms, struct kfsw_can_test_result *result);
 
 #ifdef __cplusplus
 }

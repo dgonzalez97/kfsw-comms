@@ -6,9 +6,12 @@
 #include <zephyr/drivers/can.h>
 
 #include <csp/csp.h>
+#include <csp/csp_iflist.h>
+#include <csp/csp_rtable.h>
 #include <csp/drivers/can_zephyr.h>
 
 #include <kfsw/comms/can.h>
+#include <kfsw/comms/csp.h>
 
 /* No logging here: this layer is below the log service. */
 
@@ -21,6 +24,9 @@ BUILD_ASSERT(sizeof(CONFIG_KFSW_CSP_CAN_INTERFACE_NAME) <= KFSW_CAN_INTERFACE_NA
 	     "the CAN interface name must fit libcsp's nine-character parser limit");
 
 static const struct device *const can_device = DEVICE_DT_GET(KFSW_CAN_NODE);
+
+/* Several CFP frames, so the test covers reassembly as well as one frame. */
+#define KFSW_CAN_TEST_PAYLOAD_SIZE 64U
 
 static csp_iface_t *can_interface;
 static uint32_t applied_bitrate = CONFIG_KFSW_CSP_CAN_BITRATE;
@@ -107,4 +113,28 @@ int kfsw_can_set_bitrate(uint32_t bitrate)
 
 	applied_bitrate = bitrate;
 	return kfsw_can_open();
+}
+
+int kfsw_can_test_peer(uint16_t peer, uint32_t timeout_ms, struct kfsw_can_test_result *result)
+{
+	csp_route_t *route;
+	uint32_t round_trip_us;
+	int outcome;
+
+	if ((result == NULL) || (can_interface == NULL)) {
+		return CSP_ERR_INVAL;
+	}
+	/* A packet to this node's own address is delivered locally, whatever the route. */
+	route = csp_rtable_find_route(peer);
+	if ((route == NULL) || (route->iface != can_interface) ||
+	    (csp_iflist_get_by_addr(peer) != NULL)) {
+		return CSP_ERR_NOTSUP;
+	}
+	outcome = kfsw_csp_ping(peer, timeout_ms, KFSW_CAN_TEST_PAYLOAD_SIZE, &round_trip_us);
+	if (outcome != CSP_ERR_NONE) {
+		return outcome;
+	}
+	result->peer = peer;
+	result->round_trip_us = round_trip_us;
+	return CSP_ERR_NONE;
 }
