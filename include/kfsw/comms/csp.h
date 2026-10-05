@@ -154,8 +154,11 @@ int kfsw_csp_route_table_check(const char *route_table, size_t *entry_count);
  */
 int kfsw_csp_route_table_apply(const char *route_table);
 
-/** Send a standard CSP ping using CRC32 and return its round-trip time. */
-int kfsw_csp_ping(uint16_t node, uint32_t timeout_ms, size_t payload_size, uint32_t *round_trip_ms);
+/**
+ * Send a standard CSP ping using CRC32 and return its round-trip time, in
+ * microseconds from the monotonic clock rather than in system ticks.
+ */
+int kfsw_csp_ping(uint16_t node, uint32_t timeout_ms, size_t payload_size, uint32_t *round_trip_us);
 
 /** Interface names in CMP have ten characters and a terminator. */
 #define KFSW_CSP_INTERFACE_NAME_SIZE 11U

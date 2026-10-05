@@ -369,7 +369,7 @@ int kfsw_uart_test_peer(uint16_t peer, uint32_t timeout_ms,
 			struct kfsw_uart_test_result *test_result)
 {
 	csp_route_t *route;
-	uint32_t round_trip_ms;
+	uint32_t round_trip_us;
 	int result;
 
 	if (test_result == NULL || !opened) {
@@ -381,14 +381,14 @@ int kfsw_uart_test_peer(uint16_t peer, uint32_t timeout_ms,
 		return CSP_ERR_NOTSUP;
 	}
 
-	result = kfsw_csp_ping(peer, timeout_ms, KFSW_UART_TEST_PAYLOAD_SIZE, &round_trip_ms);
+	result = kfsw_csp_ping(peer, timeout_ms, KFSW_UART_TEST_PAYLOAD_SIZE, &round_trip_us);
 	if (result != CSP_ERR_NONE) {
 		return result;
 	}
 
 	test_result->peer = peer;
 	test_result->interface_name = route->iface->name;
-	test_result->round_trip_ms = round_trip_ms;
+	test_result->round_trip_us = round_trip_us;
 	return CSP_ERR_NONE;
 }
 

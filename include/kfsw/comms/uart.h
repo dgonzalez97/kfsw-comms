@@ -30,7 +30,7 @@ typedef bool (*kfsw_uart_visitor_t)(const struct kfsw_uart_info *uart_info, void
 struct kfsw_uart_test_result {
 	uint16_t peer;
 	const char *interface_name;
-	uint32_t round_trip_ms;
+	uint32_t round_trip_us;
 };
 
 /** Read the first CSP UART configuration for legacy one-interface callers. */
