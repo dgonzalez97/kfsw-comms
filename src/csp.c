@@ -217,8 +217,6 @@ void kfsw_csp_get_info(struct kfsw_csp_info *info)
 	info->hostname = CONFIG_KFSW_CSP_HOSTNAME;
 	info->model = CONFIG_KFSW_CSP_MODEL;
 	info->revision = revision;
-	info->build_date = __DATE__;
-	info->build_time = __TIME__;
 	info->initialized = initialized;
 	info->router_running = router_running;
 	info->free_buffers = initialized ? csp_buffer_remaining() : 0;

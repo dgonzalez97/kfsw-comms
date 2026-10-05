@@ -4,8 +4,10 @@ config KFSW_CSP
 	bool "K-FSW Cubesat Space Protocol"
 	select LIBCSP
 	select CSP_USE_RTABLE
+	select CSP_REPRODUCIBLE_BUILDS
 	help
-	  Enable K-FSW's libcsp setup and router.
+	  Enable K-FSW's libcsp setup and router. The image is identified by
+	  its revision; no compile date is reported.
 
 if KFSW_CSP
 
