@@ -23,6 +23,10 @@ BUILD_ASSERT(DT_NODE_EXISTS(KFSW_CAN_NODE),
 BUILD_ASSERT(sizeof(CONFIG_KFSW_CSP_CAN_INTERFACE_NAME) <= KFSW_CAN_INTERFACE_NAME_SIZE,
 	     "the CAN interface name must fit libcsp's nine-character parser limit");
 
+/* libcsp shifts by host bits minus the prefix; a longer prefix is undefined. */
+BUILD_ASSERT(CONFIG_KFSW_CSP_CAN_PREFIX_LENGTH <= KFSW_CSP_HOST_BITS,
+	     "the CAN prefix length must not exceed the CSP address width");
+
 static const struct device *const can_device = DEVICE_DT_GET(KFSW_CAN_NODE);
 
 /* Several CFP frames, so the test covers reassembly as well as one frame. */

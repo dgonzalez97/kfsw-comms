@@ -11,12 +11,41 @@ config KFSW_CSP
 
 if KFSW_CSP
 
+choice KFSW_CSP_PROTOCOL
+	prompt "CSP protocol version"
+	default KFSW_CSP_VERSION_2
+	help
+	  Header format this node speaks on every link. Every node on a link
+	  must use the same version. libcsp holds one version per image, so a
+	  K-FSW router cannot translate between them.
+
+config KFSW_CSP_VERSION_1
+	bool "CSP 1"
+	help
+	  4-byte header, 5-bit node addresses (1..30; 31 is broadcast) and
+	  CFP1 framing on CAN. For links shared with existing CSP 1 nodes.
+
+config KFSW_CSP_VERSION_2
+	bool "CSP 2"
+	help
+	  6-byte header, 14-bit node addresses (1..16382; 16383 is broadcast)
+	  and CFP2 framing on CAN.
+
+endchoice
+
+config KFSW_CSP_VERSION
+	int
+	default 1 if KFSW_CSP_VERSION_1
+	default 2
+
 config KFSW_CSP_ADDRESS
 	int "Local CSP node address"
-	range 1 16383
+	range 1 30 if KFSW_CSP_VERSION_1
+	range 1 16382
 	default 1
 	help
-	  CSP version 2 node address assigned to this K-FSW image.
+	  CSP node address assigned to this K-FSW image. The highest address of
+	  the selected protocol version is broadcast and cannot be assigned.
 
 config KFSW_CSP_HOSTNAME
 	string "CSP hostname"
@@ -66,7 +95,8 @@ config KFSW_CSP_UART_INTERRUPT_DRIVEN
 config KFSW_CSP_UART_PEER_ADDRESS
 	int "CSP node on the other end of the UART link"
 	depends on KFSW_CSP_KISS_UART
-	range 1 16383
+	range 1 30 if KFSW_CSP_VERSION_1
+	range 1 16382
 	default 1
 	help
 	  Node pinged by `uart test`. Set it separately from the local address.
@@ -124,11 +154,14 @@ config KFSW_CSP_CAN_BITRATE
 
 config KFSW_CSP_CAN_PREFIX_LENGTH
 	int "CAN interface address prefix length"
+	default 5 if KFSW_CSP_VERSION_1
 	default 14
+	range 0 5 if KFSW_CSP_VERSION_1
 	range 0 14
 	help
-	  Prefix length over the 14-bit CSP v2 node identifier. 14 addresses one
-	  exact node; 0 makes this interface the default route.
+	  Prefix length over the CSP node identifier, which has 5 bits in CSP 1
+	  and 14 in CSP 2. The full width addresses one exact node; 0 makes
+	  this interface the default route.
 
 endif # KFSW_CSP_CAN
 

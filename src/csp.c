@@ -25,6 +25,14 @@
 #include "uart_internal.h"
 #endif
 
+/* libcsp does not mask addresses; out of range they corrupt the header. */
+BUILD_ASSERT(CONFIG_KFSW_CSP_ADDRESS < KFSW_CSP_BROADCAST_ADDRESS,
+	     "the local CSP address must be below the broadcast address");
+#if CONFIG_KFSW_CSP_KISS_UART
+BUILD_ASSERT(CONFIG_KFSW_CSP_UART_PEER_ADDRESS < KFSW_CSP_BROADCAST_ADDRESS,
+	     "the UART peer address must be below the broadcast address");
+#endif
+
 static bool initialized;
 static bool router_running;
 static K_MUTEX_DEFINE(lifecycle_lock);
@@ -150,7 +158,10 @@ int kfsw_csp_init(void)
 	csp_conf.hostname = CONFIG_KFSW_CSP_HOSTNAME;
 	csp_conf.model = CONFIG_KFSW_CSP_MODEL;
 	csp_conf.revision = revision;
+	csp_conf.version = CONFIG_KFSW_CSP_VERSION;
 	csp_init();
+	__ASSERT(csp_id_get_max_nodeid() == KFSW_CSP_BROADCAST_ADDRESS,
+		 "libcsp and K-FSW disagree on the CSP version");
 
 #if CONFIG_KFSW_CSP_KISS_UART
 	result = kfsw_uart_open_all();
@@ -458,7 +469,8 @@ static int clock_transaction(uint16_t node, uint32_t timeout_ms, struct kfsw_csp
 	struct csp_cmp_clock_msg message = {0};
 	int result;
 
-	if (clock == NULL) {
+	/* libcsp does not mask a destination; out of range it goes to another node. */
+	if ((clock == NULL) || (node == 0U) || (node >= KFSW_CSP_BROADCAST_ADDRESS)) {
 		return -EINVAL;
 	}
 	if (!initialized) {

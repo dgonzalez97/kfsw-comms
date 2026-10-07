@@ -23,4 +23,4 @@ child-binding:
     prefix-length:
       type: int
       default: 0
-      description: CSP v2 subnet prefix length in the range 0 through 14
+      description: CSP subnet prefix length, 0 through the address width (5 in CSP 1, 14 in CSP 2)
