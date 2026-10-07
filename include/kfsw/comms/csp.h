@@ -24,23 +24,23 @@ bool kfsw_csp_get_packet_trace(void);
 
 /** Local CSP identity and router state. */
 struct kfsw_csp_info {
-	uint16_t address;       /**< This node's CSP address. */
-	const char *hostname;   /**< Name reported to a remote identity request. */
-	const char *model;      /**< Hardware or composition this image was built for. */
-	const char *revision;   /**< Image revision. */
-	bool initialized;       /**< libcsp and its interfaces are up. */
-	bool router_running;    /**< The router thread is started and forwarding. */
-	size_t free_buffers;    /**< Free packet buffers. */
-	const char *libcsp;     /**< libcsp tag, from git describe of the pinned fork. */
-	uint8_t protocol;       /**< CSP protocol version on the wire, 1 or 2. */
+	uint16_t address;     /**< This node's CSP address. */
+	const char *hostname; /**< Name reported to a remote identity request. */
+	const char *model;    /**< Hardware or composition this image was built for. */
+	const char *revision; /**< Image revision. */
+	bool initialized;     /**< libcsp and its interfaces are up. */
+	bool router_running;  /**< The router thread is started and forwarding. */
+	size_t free_buffers;  /**< Free packet buffers. */
+	const char *libcsp;   /**< libcsp tag, from git describe of the pinned fork. */
+	uint8_t protocol;     /**< CSP protocol version on the wire, 1 or 2. */
 };
 
 /** Interface configuration and counters since boot. */
 struct kfsw_csp_interface_info {
 	const char *name;         /**< Interface name, as a route table refers to it. */
 	uint16_t address;         /**< Address this node answers to on this link. */
-	uint16_t prefix_length;   /**< Bits of the address that must match, over 14-bit
-				     node IDs. */
+	uint16_t prefix_length;   /**< Bits of the address that must match, over
+				     KFSW_CSP_HOST_BITS-bit node IDs. */
 	bool is_default;          /**< Used for addresses no other route matches. */
 	uint32_t tx_packets;      /**< Packets handed to the driver. */
 	uint32_t rx_packets;      /**< Packets assembled from the driver. */
@@ -77,6 +77,25 @@ typedef bool (*kfsw_csp_interface_visitor_t)(const struct kfsw_csp_interface_inf
 
 typedef bool (*kfsw_csp_route_visitor_t)(const struct kfsw_csp_route_info *route_info,
 					 void *context);
+
+/**
+ * Width of a CSP node address in the protocol version this image is built
+ * for: 5 bits in CSP 1, 14 in CSP 2.
+ *
+ * libcsp reports CSP 2 limits until kfsw_csp_init() has run. Code that checks
+ * an address before then, or without CSP composed, uses these constants.
+ */
+#if defined(CONFIG_KFSW_CSP_VERSION_1)
+#define KFSW_CSP_HOST_BITS 5U
+#else
+#define KFSW_CSP_HOST_BITS 14U
+#endif
+
+/**
+ * Highest CSP address, which is broadcast: 31 in CSP 1, 16383 in CSP 2.
+ * Unicast nodes are 1 to KFSW_CSP_BROADCAST_ADDRESS - 1.
+ */
+#define KFSW_CSP_BROADCAST_ADDRESS ((1U << KFSW_CSP_HOST_BITS) - 1U)
 
 /** Maximum route-table string length accepted by the pinned libcsp parser. */
 #define KFSW_CSP_ROUTE_TABLE_MAX_LENGTH 99U

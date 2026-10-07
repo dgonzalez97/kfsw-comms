@@ -88,14 +88,16 @@ comma-separated list:
 
 ```text
 destination[/prefix-length] interface [via], next-entry
-10/14 KISS_1,11/14 KISS_2 11
+10 KISS_1,11 KISS_2 11
 ```
 
 An empty table loads `0/0 LOOP`, so a node built without one reaches only
 itself. Links are named by the composition, never picked by start order.
 
-CSP v2 node IDs are 14 bits and the prefix length counts those bits: `/14` is
-one node, `/0` is the default route, and no prefix means `/14`. The longest
+The prefix length counts the bits of a node ID: 14 in CSP 2, 5 in CSP 1
+(`CONFIG_KFSW_CSP_VERSION_1`). The full width is one node, `/0` is the default
+route, and no prefix means the full width, so a route without one works in both
+versions. The longest
 matching prefix wins. Two entries with the same destination and prefix are both
 used; the second one is not a fallback.
 
