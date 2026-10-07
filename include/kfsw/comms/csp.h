@@ -236,8 +236,9 @@ int kfsw_csp_clock_set(const struct kfsw_csp_clock *clock);
 /**
  * @brief Read another node's RTC clock.
  *
- * Returns 0 and fills @p clock, or a negative errno. A node whose clock was
- * never set answers zero seconds.
+ * Returns 0 and fills @p clock, or a negative errno: -EINVAL for node 0 or an
+ * address from KFSW_CSP_BROADCAST_ADDRESS up. A node whose clock was never set
+ * answers zero seconds.
  */
 int kfsw_csp_clock_read(uint16_t node, uint32_t timeout_ms, struct kfsw_csp_clock *clock);
 
@@ -245,7 +246,8 @@ int kfsw_csp_clock_read(uint16_t node, uint32_t timeout_ms, struct kfsw_csp_cloc
  * @brief Set another node's clock.
  *
  * @p clock is filled with the time the node reads back after setting it. The
- * link delay is not compensated.
+ * link delay is not compensated. -EINVAL for node 0 or an address from
+ * KFSW_CSP_BROADCAST_ADDRESS up.
  */
 int kfsw_csp_clock_write(uint16_t node, uint32_t timeout_ms, struct kfsw_csp_clock *clock);
 

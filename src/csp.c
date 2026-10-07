@@ -469,7 +469,8 @@ static int clock_transaction(uint16_t node, uint32_t timeout_ms, struct kfsw_csp
 	struct csp_cmp_clock_msg message = {0};
 	int result;
 
-	if (clock == NULL) {
+	/* libcsp does not mask a destination; out of range it goes to another node. */
+	if ((clock == NULL) || (node == 0U) || (node >= KFSW_CSP_BROADCAST_ADDRESS)) {
 		return -EINVAL;
 	}
 	if (!initialized) {
