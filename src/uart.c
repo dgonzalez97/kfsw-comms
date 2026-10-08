@@ -306,16 +306,6 @@ int kfsw_uart_open_all(void)
 	return CSP_ERR_NONE;
 }
 
-size_t kfsw_uart_count(void)
-{
-	return ARRAY_SIZE(uart_configs);
-}
-
-const char *kfsw_uart_first_interface_name(void)
-{
-	return uart_configs[0].interface_name;
-}
-
 static void get_info_at(size_t index, struct kfsw_uart_info *info)
 {
 	const struct kfsw_uart_config *config = &uart_configs[index];
@@ -379,26 +369,28 @@ int kfsw_uart_test_peer(uint16_t peer, uint32_t timeout_ms,
 			struct kfsw_uart_test_result *test_result)
 {
 	csp_route_t *route;
-	uint32_t round_trip_ms;
+	uint32_t round_trip_us;
 	int result;
 
 	if (test_result == NULL || !opened) {
 		return CSP_ERR_INVAL;
 	}
 
+	/* A packet to this node's own address is delivered locally, whatever the route. */
 	route = csp_rtable_find_route(peer);
-	if (route == NULL || !managed_interface(route->iface)) {
+	if (route == NULL || !managed_interface(route->iface) ||
+	    csp_iflist_get_by_addr(peer) != NULL) {
 		return CSP_ERR_NOTSUP;
 	}
 
-	result = kfsw_csp_ping(peer, timeout_ms, KFSW_UART_TEST_PAYLOAD_SIZE, &round_trip_ms);
+	result = kfsw_csp_ping(peer, timeout_ms, KFSW_UART_TEST_PAYLOAD_SIZE, &round_trip_us);
 	if (result != CSP_ERR_NONE) {
 		return result;
 	}
 
 	test_result->peer = peer;
 	test_result->interface_name = route->iface->name;
-	test_result->round_trip_ms = round_trip_ms;
+	test_result->round_trip_us = round_trip_us;
 	return CSP_ERR_NONE;
 }
 

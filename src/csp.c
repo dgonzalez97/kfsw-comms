@@ -1,7 +1,6 @@
 #include <zephyr/kernel.h>
 
 #include <endian.h>
-#include <stdarg.h>
 #include <errno.h>
 #include <string.h>
 
@@ -15,6 +14,7 @@
 #include <csp/csp_rtable.h>
 #include <csp/interfaces/csp_if_lo.h>
 
+#include <kfsw/platform/time.h>
 #include <kfsw/platform/wallclock.h>
 #include <kfsw/comms/csp.h>
 #if CONFIG_KFSW_CSP_CAN
@@ -23,6 +23,14 @@
 
 #if CONFIG_KFSW_CSP_KISS_UART
 #include "uart_internal.h"
+#endif
+
+/* libcsp does not mask addresses; out of range they corrupt the header. */
+BUILD_ASSERT(CONFIG_KFSW_CSP_ADDRESS < KFSW_CSP_BROADCAST_ADDRESS,
+	     "the local CSP address must be below the broadcast address");
+#if CONFIG_KFSW_CSP_KISS_UART
+BUILD_ASSERT(CONFIG_KFSW_CSP_UART_PEER_ADDRESS < KFSW_CSP_BROADCAST_ADDRESS,
+	     "the UART peer address must be below the broadcast address");
 #endif
 
 static bool initialized;
@@ -115,23 +123,14 @@ int kfsw_csp_route_table_apply(const char *route_table)
 
 static int configure_routes(void)
 {
-	const char *const route_table = CONFIG_KFSW_CSP_ROUTE_TABLE;
+	const char *route_table = CONFIG_KFSW_CSP_ROUTE_TABLE;
 
-	if (route_table[0] != '\0') {
-		return load_route_table(route_table);
+	/* Nothing leaves the node unless the composition names the link. */
+	if (route_table[0] == '\0') {
+		route_table = "0/0 LOOP";
 	}
 
-#if CONFIG_KFSW_CSP_KISS_UART
-	if (kfsw_uart_count() != 1U) {
-		/* Selecting the first link implicitly is unsafe with multiple links. */
-		return CSP_ERR_INVAL;
-	}
-
-	return csp_rtable_set(0, 0, csp_iflist_get_by_name(kfsw_uart_first_interface_name()),
-			      CSP_NO_VIA_ADDRESS);
-#else
-	return CSP_ERR_NONE;
-#endif
+	return load_route_table(route_table);
 }
 
 static void kfsw_csp_router(void *arg1, void *arg2, void *arg3)
@@ -159,7 +158,10 @@ int kfsw_csp_init(void)
 	csp_conf.hostname = CONFIG_KFSW_CSP_HOSTNAME;
 	csp_conf.model = CONFIG_KFSW_CSP_MODEL;
 	csp_conf.revision = revision;
+	csp_conf.version = CONFIG_KFSW_CSP_VERSION;
 	csp_init();
+	__ASSERT(csp_id_get_max_nodeid() == KFSW_CSP_BROADCAST_ADDRESS,
+		 "libcsp and K-FSW disagree on the CSP version");
 
 #if CONFIG_KFSW_CSP_KISS_UART
 	result = kfsw_uart_open_all();
@@ -227,11 +229,11 @@ void kfsw_csp_get_info(struct kfsw_csp_info *info)
 	info->hostname = CONFIG_KFSW_CSP_HOSTNAME;
 	info->model = CONFIG_KFSW_CSP_MODEL;
 	info->revision = revision;
-	info->build_date = __DATE__;
-	info->build_time = __TIME__;
 	info->initialized = initialized;
 	info->router_running = router_running;
 	info->free_buffers = initialized ? csp_buffer_remaining() : 0;
+	info->libcsp = KFSW_LIBCSP_REVISION;
+	info->protocol = csp_conf.version;
 }
 
 void kfsw_csp_visit_interfaces(kfsw_csp_interface_visitor_t visitor, void *context)
@@ -302,6 +304,55 @@ void kfsw_csp_visit_routes(kfsw_csp_route_visitor_t visitor, void *context)
 	csp_rtable_iterate(visit_route, &visitor_context);
 }
 
+int kfsw_csp_route_lookup(uint16_t address, struct kfsw_csp_route_info *info)
+{
+	csp_iface_t *interface;
+	csp_route_t *route = NULL;
+	bool default_interface = false;
+	int result = 0;
+
+	if (info == NULL || address > KFSW_CSP_BROADCAST_ADDRESS) {
+		return -EINVAL;
+	}
+	k_mutex_lock(&lifecycle_lock, K_FOREVER);
+	if (!initialized) {
+		result = -ENETDOWN;
+		goto out;
+	}
+
+	if (address == csp_if_lo.addr) {
+		interface = &csp_if_lo;
+	} else {
+		interface = csp_iflist_get_by_subnet(address, NULL);
+		if (interface == NULL) {
+			route = csp_rtable_find_route(address);
+			interface = route != NULL ? route->iface : csp_iflist_get_by_isdfl(NULL);
+			default_interface = route == NULL;
+		}
+	}
+	if (interface == NULL) {
+		result = -ENOENT;
+		goto out;
+	}
+
+	*info = (struct kfsw_csp_route_info){
+		.address = route != NULL ? route->address : interface->addr,
+		.prefix_length = route != NULL ? route->netmask : interface->netmask,
+		.interface_name = interface->name,
+		.via = route != NULL ? route->via : CSP_NO_VIA_ADDRESS,
+		.has_via = route != NULL && route->via != CSP_NO_VIA_ADDRESS,
+	};
+	if (address == csp_if_lo.addr) {
+		info->prefix_length = KFSW_CSP_HOST_BITS;
+	} else if (default_interface) {
+		info->address = 0U;
+		info->prefix_length = 0U;
+	}
+out:
+	k_mutex_unlock(&lifecycle_lock);
+	return result;
+}
+
 int kfsw_csp_route_table_check(const char *route_table, size_t *entry_count)
 {
 	/* Before the interfaces exist the parser can't resolve names, so report
@@ -314,38 +365,6 @@ int kfsw_csp_route_table_check(const char *route_table, size_t *entry_count)
 	return check_route_table(route_table, entry_count);
 }
 
-/** Longest trace line libcsp emits, with its colour sequences and a terminator. */
-#define KFSW_CSP_TRACE_LINE_MAX 192U
-
-/* Reset colour before the newline to keep later shell output uncoloured. */
-void csp_print_func(const char *fmt, ...)
-{
-	char line[KFSW_CSP_TRACE_LINE_MAX];
-	char *newline;
-	va_list args;
-	int length;
-
-	va_start(args, fmt);
-	length = vsnprintk(line, sizeof(line), fmt, args);
-	va_end(args);
-
-	if (length <= 0) {
-		return;
-	}
-
-	/* Print truncated lines too. */
-	if ((size_t)length >= sizeof(line)) {
-		line[sizeof(line) - 1U] = '\0';
-	}
-
-	newline = strchr(line, '\n');
-	if (newline != NULL) {
-		(void)memmove(newline, newline + 1, strlen(newline + 1) + 1U);
-	}
-
-	printk("[DEBUG] %s\033[0m\n", line);
-}
-
 void kfsw_csp_set_packet_trace(bool enabled)
 {
 	csp_dbg_packet_print = enabled ? 1U : 0U;
@@ -354,25 +373,6 @@ void kfsw_csp_set_packet_trace(bool enabled)
 bool kfsw_csp_get_packet_trace(void)
 {
 	return csp_dbg_packet_print != 0U;
-}
-
-static kfsw_csp_inbound_hook_t inbound_hook;
-
-void kfsw_csp_set_inbound_hook(kfsw_csp_inbound_hook_t hook)
-{
-	inbound_hook = hook;
-}
-
-/* libcsp's weak hook, called by the router for every packet it accepts. */
-void csp_input_hook(csp_iface_t *iface, csp_packet_t *packet)
-{
-	const kfsw_csp_inbound_hook_t hook = inbound_hook;
-
-	ARG_UNUSED(iface);
-
-	if ((hook != NULL) && (packet != NULL)) {
-		hook(packet->id.src, packet->id.dport);
-	}
 }
 
 void kfsw_csp_get_counters(struct kfsw_csp_counters *counters)
@@ -518,7 +518,8 @@ static int clock_transaction(uint16_t node, uint32_t timeout_ms, struct kfsw_csp
 	struct csp_cmp_clock_msg message = {0};
 	int result;
 
-	if (clock == NULL) {
+	/* libcsp does not mask a destination; out of range it goes to another node. */
+	if ((clock == NULL) || (node == 0U) || (node >= KFSW_CSP_BROADCAST_ADDRESS)) {
 		return -EINVAL;
 	}
 	if (!initialized) {
@@ -645,22 +646,25 @@ int kfsw_csp_identify(uint16_t node, uint32_t timeout_ms, struct kfsw_csp_identi
 	return CSP_ERR_NONE;
 }
 
-int kfsw_csp_ping(uint16_t node, uint32_t timeout_ms, size_t payload_size, uint32_t *round_trip_ms)
+int kfsw_csp_ping(uint16_t node, uint32_t timeout_ms, size_t payload_size, uint32_t *round_trip_us)
 {
 	const unsigned int host_bits = csp_id_get_host_bits();
+	uint64_t start_us;
 	int elapsed_ms;
 
-	if (!initialized || !router_running || round_trip_ms == NULL ||
+	if (!initialized || !router_running || round_trip_us == NULL ||
 	    node >= (1UL << host_bits) || payload_size > CSP_BUFFER_SIZE) {
 		return CSP_ERR_INVAL;
 	}
 
-	*round_trip_ms = 0;
+	*round_trip_us = 0;
+	/* libcsp counts in system ticks, 10 ms on native_sim; time it here instead. */
+	start_us = kfsw_time_monotonic_us();
 	elapsed_ms = csp_ping(node, timeout_ms, (unsigned int)payload_size, CSP_O_CRC32);
 	if (elapsed_ms < 0) {
 		return CSP_ERR_TIMEDOUT;
 	}
 
-	*round_trip_ms = (uint32_t)elapsed_ms;
+	*round_trip_us = (uint32_t)MIN(kfsw_time_monotonic_us() - start_us, UINT32_MAX);
 	return CSP_ERR_NONE;
 }
