@@ -304,6 +304,55 @@ void kfsw_csp_visit_routes(kfsw_csp_route_visitor_t visitor, void *context)
 	csp_rtable_iterate(visit_route, &visitor_context);
 }
 
+int kfsw_csp_route_lookup(uint16_t address, struct kfsw_csp_route_info *info)
+{
+	csp_iface_t *interface;
+	csp_route_t *route = NULL;
+	bool default_interface = false;
+	int result = 0;
+
+	if (info == NULL || address > KFSW_CSP_BROADCAST_ADDRESS) {
+		return -EINVAL;
+	}
+	k_mutex_lock(&lifecycle_lock, K_FOREVER);
+	if (!initialized) {
+		result = -ENETDOWN;
+		goto out;
+	}
+
+	if (address == csp_if_lo.addr) {
+		interface = &csp_if_lo;
+	} else {
+		interface = csp_iflist_get_by_subnet(address, NULL);
+		if (interface == NULL) {
+			route = csp_rtable_find_route(address);
+			interface = route != NULL ? route->iface : csp_iflist_get_by_isdfl(NULL);
+			default_interface = route == NULL;
+		}
+	}
+	if (interface == NULL) {
+		result = -ENOENT;
+		goto out;
+	}
+
+	*info = (struct kfsw_csp_route_info){
+		.address = route != NULL ? route->address : interface->addr,
+		.prefix_length = route != NULL ? route->netmask : interface->netmask,
+		.interface_name = interface->name,
+		.via = route != NULL ? route->via : CSP_NO_VIA_ADDRESS,
+		.has_via = route != NULL && route->via != CSP_NO_VIA_ADDRESS,
+	};
+	if (address == csp_if_lo.addr) {
+		info->prefix_length = KFSW_CSP_HOST_BITS;
+	} else if (default_interface) {
+		info->address = 0U;
+		info->prefix_length = 0U;
+	}
+out:
+	k_mutex_unlock(&lifecycle_lock);
+	return result;
+}
+
 int kfsw_csp_route_table_check(const char *route_table, size_t *entry_count)
 {
 	/* Before the interfaces exist the parser can't resolve names, so report

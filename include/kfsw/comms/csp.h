@@ -141,6 +141,21 @@ void kfsw_csp_visit_interfaces(kfsw_csp_interface_visitor_t visitor, void *conte
  */
 void kfsw_csp_visit_routes(kfsw_csp_route_visitor_t visitor, void *context);
 
+/**
+ * @brief Resolve an address using the router's outgoing interface precedence.
+ *
+ * Local loopback and connected subnets precede the longest matching static
+ * prefix; default interfaces are the fallback. When several links carry the
+ * same destination, returns the first connected/default interface or the last
+ * matching static entry, as libcsp's lookup does. This is a route observation,
+ * not proof of delivery. Interface names remain owned by libcsp.
+ *
+ * Returns 0 on success, -ENOENT when no route or interface matches,
+ * -ENETDOWN before initialization, or -EINVAL for an invalid address or NULL
+ * output. Output is unchanged on failure.
+ */
+int kfsw_csp_route_lookup(uint16_t address, struct kfsw_csp_route_info *info);
+
 /** Copy libcsp's error counters. Safe before initialization; they read zero. */
 void kfsw_csp_get_counters(struct kfsw_csp_counters *counters);
 
