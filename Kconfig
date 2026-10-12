@@ -129,6 +129,8 @@ config KFSW_CSP_UART_CODEC_PRIORITY
 config KFSW_CSP_CAN
 	bool "CSP over CAN"
 	depends on CAN
+	# libcsp's CAN driver waits on k_event.
+	select EVENTS
 	help
 	  Register a CAN controller as a CSP interface. libcsp splits packets
 	  across CAN frames. The controller comes from the kfsw,csp-can chosen
