@@ -394,7 +394,3 @@ int kfsw_uart_test_peer(uint16_t peer, uint32_t timeout_ms,
 	return CSP_ERR_NONE;
 }
 
-int kfsw_uart_test(uint32_t timeout_ms, struct kfsw_uart_test_result *test_result)
-{
-	return kfsw_uart_test_peer(CONFIG_KFSW_CSP_UART_PEER_ADDRESS, timeout_ms, test_result);
-}
