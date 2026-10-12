@@ -160,8 +160,12 @@ int kfsw_csp_init(void)
 	csp_conf.revision = revision;
 	csp_conf.version = CONFIG_KFSW_CSP_VERSION;
 	csp_init();
-	__ASSERT(csp_id_get_max_nodeid() == KFSW_CSP_BROADCAST_ADDRESS,
-		 "libcsp and K-FSW disagree on the CSP version");
+	/* A disagreement here corrupts every header on the wire, so it is refused
+	   in the image that flies and not only in one built with assertions. The
+	   caller reports it; this library does not log. */
+	if (csp_id_get_max_nodeid() != KFSW_CSP_BROADCAST_ADDRESS) {
+		return CSP_ERR_INVAL;
+	}
 
 #if CONFIG_KFSW_CSP_KISS_UART
 	result = kfsw_uart_open_all();
