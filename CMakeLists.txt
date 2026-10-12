@@ -37,6 +37,40 @@ if(CONFIG_KFSW_CSP)
             csp
             zephyr_interface
     )
+
+    # The libcsp tag, so csp info names the library this image runs.
+    get_target_property(kfsw_libcsp_dir csp SOURCE_DIR)
+    set(kfsw_libcsp_revision "unknown")
+    find_package(Git QUIET)
+    if(GIT_FOUND)
+        execute_process(
+            COMMAND ${GIT_EXECUTABLE} describe --tags --always
+            WORKING_DIRECTORY "${kfsw_libcsp_dir}"
+            OUTPUT_VARIABLE kfsw_libcsp_describe
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET
+            RESULT_VARIABLE kfsw_libcsp_result
+        )
+        if(kfsw_libcsp_result EQUAL 0 AND kfsw_libcsp_describe)
+            set(kfsw_libcsp_revision "${kfsw_libcsp_describe}")
+        endif()
+        execute_process(
+            COMMAND ${GIT_EXECUTABLE} rev-parse --git-dir
+            WORKING_DIRECTORY "${kfsw_libcsp_dir}"
+            OUTPUT_VARIABLE kfsw_libcsp_git_dir
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET
+        )
+        # Reconfigure when the pin moves.
+        if(kfsw_libcsp_git_dir AND EXISTS "${kfsw_libcsp_dir}/${kfsw_libcsp_git_dir}/HEAD")
+            set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+                "${kfsw_libcsp_dir}/${kfsw_libcsp_git_dir}/HEAD")
+        endif()
+    endif()
+    target_compile_definitions(kfsw_comms
+        PRIVATE
+            KFSW_LIBCSP_REVISION="${kfsw_libcsp_revision}"
+    )
 else()
     add_library(kfsw_comms INTERFACE)
 

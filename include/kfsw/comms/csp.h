@@ -24,23 +24,23 @@ bool kfsw_csp_get_packet_trace(void);
 
 /** Local CSP identity and router state. */
 struct kfsw_csp_info {
-	uint16_t address;       /**< This node's CSP address. */
-	const char *hostname;   /**< Name reported to a remote identity request. */
-	const char *model;      /**< Hardware or composition this image was built for. */
-	const char *revision;   /**< Image revision. */
-	const char *build_date; /**< Date this image was compiled. */
-	const char *build_time; /**< Time this image was compiled. */
-	bool initialized;       /**< libcsp and its interfaces are up. */
-	bool router_running;    /**< The router thread is started and forwarding. */
-	size_t free_buffers;    /**< Free packet buffers. */
+	uint16_t address;     /**< This node's CSP address. */
+	const char *hostname; /**< Name reported to a remote identity request. */
+	const char *model;    /**< Hardware or composition this image was built for. */
+	const char *revision; /**< Image revision. */
+	bool initialized;     /**< libcsp and its interfaces are up. */
+	bool router_running;  /**< The router thread is started and forwarding. */
+	size_t free_buffers;  /**< Free packet buffers. */
+	const char *libcsp;   /**< libcsp tag, from git describe of the pinned fork. */
+	uint8_t protocol;     /**< CSP protocol version on the wire, 1 or 2. */
 };
 
 /** Interface configuration and counters since boot. */
 struct kfsw_csp_interface_info {
 	const char *name;         /**< Interface name, as a route table refers to it. */
 	uint16_t address;         /**< Address this node answers to on this link. */
-	uint16_t prefix_length;   /**< Bits of the address that must match, over 14-bit
-				     node IDs. */
+	uint16_t prefix_length;   /**< Bits of the address that must match, over
+				     KFSW_CSP_HOST_BITS-bit node IDs. */
 	bool is_default;          /**< Used for addresses no other route matches. */
 	uint32_t tx_packets;      /**< Packets handed to the driver. */
 	uint32_t rx_packets;      /**< Packets assembled from the driver. */
@@ -78,8 +78,42 @@ typedef bool (*kfsw_csp_interface_visitor_t)(const struct kfsw_csp_interface_inf
 typedef bool (*kfsw_csp_route_visitor_t)(const struct kfsw_csp_route_info *route_info,
 					 void *context);
 
+/**
+ * Width of a CSP node address in the protocol version this image is built
+ * for: 5 bits in CSP 1, 14 in CSP 2.
+ *
+ * libcsp reports CSP 2 limits until kfsw_csp_init() has run. Code that checks
+ * an address before then, or without CSP composed, uses these constants.
+ */
+#if defined(CONFIG_KFSW_CSP_VERSION_1)
+#define KFSW_CSP_HOST_BITS 5U
+#else
+#define KFSW_CSP_HOST_BITS 14U
+#endif
+
+/**
+ * Highest CSP address, which is broadcast: 31 in CSP 1, 16383 in CSP 2.
+ * Unicast nodes are 1 to KFSW_CSP_BROADCAST_ADDRESS - 1.
+ */
+#define KFSW_CSP_BROADCAST_ADDRESS ((1U << KFSW_CSP_HOST_BITS) - 1U)
+
 /** Maximum route-table string length accepted by the pinned libcsp parser. */
 #define KFSW_CSP_ROUTE_TABLE_MAX_LENGTH 99U
+
+/**
+ * Framing the encrypted UHF link adds inside one CSP buffer: a 12-byte header,
+ * a 16-byte tag and a 4-byte checksum.
+ */
+#define KFSW_CSP_SECURE_OVERHEAD 32U
+
+/**
+ * Largest application payload that survives every K-FSW transport.
+ *
+ * A service that sizes a full packet checks against this and not
+ * CSP_BUFFER_SIZE: the encrypted UHF link is the tightest and drops anything
+ * longer without reporting it.
+ */
+#define KFSW_CSP_PAYLOAD_MAX (CONFIG_CSP_BUFFER_SIZE - KFSW_CSP_SECURE_OVERHEAD)
 
 /**
  * @brief Set the revision this node reports. Call before CSP is initialised.
@@ -108,20 +142,19 @@ void kfsw_csp_visit_interfaces(kfsw_csp_interface_visitor_t visitor, void *conte
 void kfsw_csp_visit_routes(kfsw_csp_route_visitor_t visitor, void *context);
 
 /**
- * @brief Called for each packet the router accepts, from the router thread.
+ * @brief Resolve an address using the router's outgoing interface precedence.
  *
- * @param source_node Node the packet came from.
- * @param destination_port Port it was addressed to.
- */
-typedef void (*kfsw_csp_inbound_hook_t)(uint16_t source_node, uint8_t destination_port);
-
-/**
- * @brief Watch inbound packets. Pass NULL to stop.
+ * Local loopback and connected subnets precede the longest matching static
+ * prefix; default interfaces are the fallback. When several links carry the
+ * same destination, returns the first connected/default interface or the last
+ * matching static entry, as libcsp's lookup does. This is a route observation,
+ * not proof of delivery. Interface names remain owned by libcsp.
  *
- * The hook runs on the router thread, so it must return quickly and must not
- * block. One hook at a time; a second call replaces the first.
+ * Returns 0 on success, -ENOENT when no route or interface matches,
+ * -ENETDOWN before initialization, or -EINVAL for an invalid address or NULL
+ * output. Output is unchanged on failure.
  */
-void kfsw_csp_set_inbound_hook(kfsw_csp_inbound_hook_t hook);
+int kfsw_csp_route_lookup(uint16_t address, struct kfsw_csp_route_info *info);
 
 /** Copy libcsp's error counters. Safe before initialization; they read zero. */
 void kfsw_csp_get_counters(struct kfsw_csp_counters *counters);
@@ -157,8 +190,11 @@ int kfsw_csp_route_table_check(const char *route_table, size_t *entry_count);
  */
 int kfsw_csp_route_table_apply(const char *route_table);
 
-/** Send a standard CSP ping using CRC32 and return its round-trip time. */
-int kfsw_csp_ping(uint16_t node, uint32_t timeout_ms, size_t payload_size, uint32_t *round_trip_ms);
+/**
+ * Send a standard CSP ping using CRC32 and return its round-trip time, in
+ * microseconds from the monotonic clock rather than in system ticks.
+ */
+int kfsw_csp_ping(uint16_t node, uint32_t timeout_ms, size_t payload_size, uint32_t *round_trip_us);
 
 /** Interface names in CMP have ten characters and a terminator. */
 #define KFSW_CSP_INTERFACE_NAME_SIZE 11U
@@ -215,8 +251,9 @@ int kfsw_csp_clock_set(const struct kfsw_csp_clock *clock);
 /**
  * @brief Read another node's RTC clock.
  *
- * Returns 0 and fills @p clock, or a negative errno. A node whose clock was
- * never set answers zero seconds.
+ * Returns 0 and fills @p clock, or a negative errno: -EINVAL for node 0 or an
+ * address from KFSW_CSP_BROADCAST_ADDRESS up. A node whose clock was never set
+ * answers zero seconds.
  */
 int kfsw_csp_clock_read(uint16_t node, uint32_t timeout_ms, struct kfsw_csp_clock *clock);
 
@@ -224,7 +261,8 @@ int kfsw_csp_clock_read(uint16_t node, uint32_t timeout_ms, struct kfsw_csp_cloc
  * @brief Set another node's clock.
  *
  * @p clock is filled with the time the node reads back after setting it. The
- * link delay is not compensated.
+ * link delay is not compensated. -EINVAL for node 0 or an address from
+ * KFSW_CSP_BROADCAST_ADDRESS up.
  */
 int kfsw_csp_clock_write(uint16_t node, uint32_t timeout_ms, struct kfsw_csp_clock *clock);
 
