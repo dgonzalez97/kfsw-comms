@@ -39,9 +39,6 @@ void kfsw_uart_get_info(struct kfsw_uart_info *info);
 /** Visit every independently configured CSP KISS/UART interface. */
 void kfsw_uart_visit(kfsw_uart_visitor_t visitor, void *context);
 
-/** Ping the configured peer after verifying that its route uses this UART. */
-int kfsw_uart_test(uint32_t timeout_ms, struct kfsw_uart_test_result *test_result);
-
 /**
  * Ping a peer and report the KISS/UART interface selected by the CSP route.
  * Returns CSP_ERR_NOTSUP when that route is not a UART, or the peer is this
