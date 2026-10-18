@@ -6,8 +6,19 @@
 
 #include <csp/csp.h>
 #if CONFIG_KFSW_CSP_HMAC
+#include <csp/autoconfig.h>
 #include <csp/crypto/csp_hmac.h>
 #include <kfsw_csp_hmac_key.h>
+/*
+ * Selecting the Kconfig option is not enough on its own: libcsp is built by its
+ * own CMake, and its Zephyr integration has to carry CSP_USE_HMAC across. When
+ * it does not, every signed connection fails to send with "unsupported", which
+ * on a radio reads as a dead link rather than a missing feature. That cost an
+ * afternoon once, so the pinned revision is checked here instead.
+ */
+#if !CSP_USE_HMAC
+#error "KFSW_CSP_HMAC needs a libcsp built with CSP_USE_HMAC; the pinned revision does not map it"
+#endif
 #endif
 #include <csp/csp_cmp.h>
 #include <csp/csp_debug.h>
@@ -679,7 +690,8 @@ int kfsw_csp_ping(uint16_t node, uint32_t timeout_ms, size_t payload_size, uint3
 	*round_trip_us = 0;
 	/* libcsp counts in system ticks, 10 ms on native_sim; time it here instead. */
 	start_us = kfsw_time_monotonic_us();
-	elapsed_ms = csp_ping(node, timeout_ms, (unsigned int)payload_size, (CSP_O_CRC32 | KFSW_CSP_AUTHENTICATED_CONNECTION));
+	elapsed_ms = csp_ping(node, timeout_ms, (unsigned int)payload_size,
+			      (CSP_O_CRC32 | KFSW_CSP_AUTHENTICATED_CONNECTION));
 	if (elapsed_ms < 0) {
 		return CSP_ERR_TIMEDOUT;
 	}
