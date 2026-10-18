@@ -60,6 +60,13 @@ config KFSW_CSP_HMAC
 	  until KFSW_CSP_HMAC_REQUIRE is set, which is the step that can lock
 	  an operator out and wants a pass of evidence behind it.
 
+	  libcsp marks the HMAC per socket, so this cannot say "only what came
+	  from the radio", and it leaves out what does not go through a socket,
+	  remote parameter writes among them. For a radio link that matters,
+	  KFSW_RADIO_UHF_CRYPTO wraps the interface instead and covers
+	  everything that crosses it. This option is the cheap one, for a link
+	  with no codec behind it.
+
 if KFSW_CSP_HMAC
 
 config KFSW_CSP_HMAC_KEY_FILE
