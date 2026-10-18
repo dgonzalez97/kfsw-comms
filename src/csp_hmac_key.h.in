@@ -1,0 +1,10 @@
+/* Generated at build time from KFSW_CSP_HMAC_KEY_FILE. Not in the tree, not
+ * installed, and never printed: a key that reaches a log is a key that has
+ * been published.
+ */
+#ifndef KFSW_CSP_HMAC_KEY_H
+#define KFSW_CSP_HMAC_KEY_H
+
+#define KFSW_CSP_HMAC_KEY_BYTES { @kfsw_hmac_key_bytes@ }
+
+#endif

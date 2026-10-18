@@ -47,6 +47,42 @@ config KFSW_CSP_ADDRESS
 	  CSP node address assigned to this K-FSW image. The highest address of
 	  the selected protocol version is broadcast and cannot be assigned.
 
+config KFSW_CSP_HMAC
+	bool "Authenticate CSP traffic with an HMAC"
+	select CSP_USE_HMAC
+	help
+	  Append a four byte HMAC-SHA1 tag to what this node sends, and verify
+	  the tag on what arrives carrying one. libcsp drops a packet whose tag
+	  does not verify, so a wrong key makes signed traffic disappear rather
+	  than be reported.
+
+	  On its own this only signs. Nothing is refused for arriving unsigned
+	  until KFSW_CSP_HMAC_REQUIRE is set, which is the step that can lock
+	  an operator out and wants a pass of evidence behind it.
+
+if KFSW_CSP_HMAC
+
+config KFSW_CSP_HMAC_KEY_FILE
+	string "File holding the 16 byte shared key"
+	default "$(HOME)/.config/kfsw/csp-hmac.key"
+	help
+	  Read at build time and compiled into the image. It stays out of the
+	  tree for the same reason the signing key does: a secret in the work
+	  tree is one `git add -A` from being published.
+
+config KFSW_CSP_HMAC_REQUIRE
+	bool "Refuse unsigned traffic on the ports that change state"
+	help
+	  Commanding, remote execution, parameter writes, file transfer and
+	  firmware update stop accepting unsigned packets. Reads stay open:
+	  signing telemetry protects nothing and costs every query.
+
+	  A node that enforces this and whose key is wrong cannot be commanded
+	  at all. Fly the signing step first, read the counters, and set this
+	  once the traffic that matters is arriving signed.
+
+endif # KFSW_CSP_HMAC
+
 config KFSW_CSP_HOSTNAME
 	string "CSP hostname"
 	default "kfsw"

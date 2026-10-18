@@ -5,6 +5,10 @@
 #include <string.h>
 
 #include <csp/csp.h>
+#if CONFIG_KFSW_CSP_HMAC
+#include <csp/crypto/csp_hmac.h>
+#include <kfsw_csp_hmac_key.h>
+#endif
 #include <csp/csp_cmp.h>
 #include <csp/csp_debug.h>
 #include <csp/csp_hooks.h>
@@ -160,6 +164,16 @@ int kfsw_csp_init(void)
 	csp_conf.revision = revision;
 	csp_conf.version = CONFIG_KFSW_CSP_VERSION;
 	csp_init();
+#if CONFIG_KFSW_CSP_HMAC
+	{
+		static const uint8_t hmac_key[] = KFSW_CSP_HMAC_KEY_BYTES;
+
+		result = csp_hmac_set_key(hmac_key, sizeof(hmac_key));
+		if (result != CSP_ERR_NONE) {
+			return result;
+		}
+	}
+#endif
 	/* A disagreement here corrupts every header on the wire, so it is refused
 	   in the image that flies and not only in one built with assertions. The
 	   caller reports it; this library does not log. */
@@ -259,6 +273,7 @@ void kfsw_csp_visit_interfaces(kfsw_csp_interface_visitor_t visitor, void *conte
 			.tx_errors = interface->tx_error,
 			.rx_errors = interface->rx_error,
 			.dropped_packets = interface->drop,
+			.auth_errors = interface->autherr,
 		};
 
 		if (!visitor(&info, context)) {
@@ -664,7 +679,7 @@ int kfsw_csp_ping(uint16_t node, uint32_t timeout_ms, size_t payload_size, uint3
 	*round_trip_us = 0;
 	/* libcsp counts in system ticks, 10 ms on native_sim; time it here instead. */
 	start_us = kfsw_time_monotonic_us();
-	elapsed_ms = csp_ping(node, timeout_ms, (unsigned int)payload_size, CSP_O_CRC32);
+	elapsed_ms = csp_ping(node, timeout_ms, (unsigned int)payload_size, (CSP_O_CRC32 | KFSW_CSP_AUTHENTICATED_CONNECTION));
 	if (elapsed_ms < 0) {
 		return CSP_ERR_TIMEDOUT;
 	}
