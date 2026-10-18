@@ -22,6 +22,22 @@ void kfsw_csp_set_packet_trace(bool enabled);
 /** Whether packet tracing is currently on. */
 bool kfsw_csp_get_packet_trace(void);
 
+/**
+ * @brief How much the reliable transport explains itself.
+ *
+ * RDP is where a transfer stalls without saying why, so the detail is a dial
+ * rather than a switch: 0 says nothing, 1 reports the errors, 2 adds the
+ * protocol exchange, which is a line per segment and only worth it for one
+ * pass. Off by default, and not persisted: a reset returns to quiet.
+ *
+ * @retval 0 Applied.
+ * @retval -ERANGE Above 2.
+ */
+int kfsw_csp_set_rdp_trace(uint8_t level);
+
+/** The level the reliable transport is tracing at. */
+uint8_t kfsw_csp_get_rdp_trace(void);
+
 /** Local CSP identity and router state. */
 struct kfsw_csp_info {
 	uint16_t address;     /**< This node's CSP address. */

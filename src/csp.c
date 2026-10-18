@@ -405,6 +405,20 @@ bool kfsw_csp_get_packet_trace(void)
 	return csp_dbg_packet_print != 0U;
 }
 
+int kfsw_csp_set_rdp_trace(uint8_t level)
+{
+	if (level > 2U) {
+		return -ERANGE;
+	}
+	csp_dbg_rdp_print = level;
+	return 0;
+}
+
+uint8_t kfsw_csp_get_rdp_trace(void)
+{
+	return csp_dbg_rdp_print;
+}
+
 void kfsw_csp_get_counters(struct kfsw_csp_counters *counters)
 {
 	if (counters == NULL) {
