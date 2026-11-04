@@ -393,4 +393,3 @@ int kfsw_uart_test_peer(uint16_t peer, uint32_t timeout_ms,
 	test_result->round_trip_us = round_trip_us;
 	return CSP_ERR_NONE;
 }
-
