@@ -109,6 +109,7 @@ BUILD_ASSERT(CONFIG_CSP_UART_RX_THREAD_NUM >= ARRAY_SIZE(uart_configs),
 
 static struct kfsw_uart_context uart_contexts[ARRAY_SIZE(uart_configs)];
 static bool opened;
+static int open_result;
 
 static bool route_safe_name(const char *name)
 {
@@ -266,8 +267,9 @@ int kfsw_uart_open_all(void)
 {
 	int result;
 
-	if (opened) {
-		return CSP_ERR_NONE;
+	/* The USART driver cannot close contexts after a partial open. */
+	if (opened || open_result != CSP_ERR_NONE) {
+		return open_result;
 	}
 
 	result = preflight();
@@ -284,22 +286,22 @@ int kfsw_uart_open_all(void)
 
 	for (size_t i = 0U; i < ARRAY_SIZE(uart_configs); ++i) {
 		uart_contexts[i].config = &uart_configs[i];
-		result = open_context(&uart_contexts[i]);
-		if (result != CSP_ERR_NONE) {
-			return result;
+		open_result = open_context(&uart_contexts[i]);
+		if (open_result != CSP_ERR_NONE) {
+			return open_result;
 		}
 #if CONFIG_KFSW_CSP_UART_CODEC
-		result = kfsw_uart_codec_attach(uart_contexts[i].interface);
-		if (result != 0) {
-			return result;
+		open_result = kfsw_uart_codec_attach(uart_contexts[i].interface);
+		if (open_result != 0) {
+			return open_result;
 		}
 #endif
 	}
 
 #if CONFIG_KFSW_CSP_UART_CODEC
-	result = kfsw_uart_codec_check();
-	if (result != 0) {
-		return result;
+	open_result = kfsw_uart_codec_check();
+	if (open_result != 0) {
+		return open_result;
 	}
 #endif
 	opened = true;

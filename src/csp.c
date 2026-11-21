@@ -49,6 +49,7 @@ BUILD_ASSERT(CONFIG_KFSW_CSP_UART_PEER_ADDRESS < KFSW_CSP_BROADCAST_ADDRESS,
 #endif
 
 static bool initialized;
+static bool stack_initialized;
 static bool router_running;
 static K_MUTEX_DEFINE(lifecycle_lock);
 
@@ -174,7 +175,10 @@ int kfsw_csp_init(void)
 	csp_conf.model = CONFIG_KFSW_CSP_MODEL;
 	csp_conf.revision = revision;
 	csp_conf.version = CONFIG_KFSW_CSP_VERSION;
-	csp_init();
+	if (!stack_initialized) {
+		csp_init();
+		stack_initialized = true;
+	}
 #if CONFIG_KFSW_CSP_HMAC
 	{
 		static const uint8_t hmac_key[] = KFSW_CSP_HMAC_KEY_BYTES;
