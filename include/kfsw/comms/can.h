@@ -1,6 +1,11 @@
 #ifndef KFSW_COMMS_CAN_H
 #define KFSW_COMMS_CAN_H
 
+/**
+ * @addtogroup kfsw_comms_can
+ * @{
+ */
+
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -89,5 +94,7 @@ int kfsw_can_test_peer(uint16_t peer, uint32_t timeout_ms, struct kfsw_can_test_
 #ifdef __cplusplus
 }
 #endif
+
+/** @} */
 
 #endif /* KFSW_COMMS_CAN_H */

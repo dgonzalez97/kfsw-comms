@@ -1,6 +1,11 @@
 #ifndef KFSW_COMMS_UART_H
 #define KFSW_COMMS_UART_H
 
+/**
+ * @addtogroup kfsw_comms_uart
+ * @{
+ */
+
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -50,5 +55,7 @@ int kfsw_uart_test_peer(uint16_t peer, uint32_t timeout_ms,
 #ifdef __cplusplus
 }
 #endif
+
+/** @} */
 
 #endif

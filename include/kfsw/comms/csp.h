@@ -1,6 +1,11 @@
 #ifndef KFSW_COMMS_CSP_H
 #define KFSW_COMMS_CSP_H
 
+/**
+ * @addtogroup kfsw_comms_csp
+ * @{
+ */
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -355,5 +360,7 @@ int kfsw_csp_identify(uint16_t node, uint32_t timeout_ms, struct kfsw_csp_identi
 #ifdef __cplusplus
 }
 #endif
+
+/** @} */
 
 #endif
