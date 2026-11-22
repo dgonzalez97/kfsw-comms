@@ -76,10 +76,14 @@ bool kfsw_can_bitrate_supported(uint32_t bitrate);
 /**
  * @brief Apply a new bitrate, restarting the controller.
  *
- * This function only reports whether the controller accepted the change.
+ * An unchanged bitrate succeeds without restarting. Before the controller is
+ * open, the value is kept for the next open. A change to an open controller is
+ * refused while the CSP router runs. Callers must serialize changes with
+ * interface users and router startup.
  *
- * Returns 0 on success, -EINVAL for an unsupported bitrate, -ENODEV when no
- * controller is open.
+ * Returns 0 on success, -EINVAL for an unsupported bitrate, -EBUSY when the
+ * router is running, -EIO when stopping fails, or a negative errno if reopening
+ * fails.
  */
 int kfsw_can_set_bitrate(uint32_t bitrate);
 

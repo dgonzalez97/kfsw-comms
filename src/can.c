@@ -95,6 +95,7 @@ void kfsw_can_get_info(struct kfsw_can_info *info)
 
 int kfsw_can_set_bitrate(uint32_t bitrate)
 {
+	struct kfsw_csp_info info;
 	int result;
 
 	if (!kfsw_can_bitrate_supported(bitrate)) {
@@ -107,6 +108,11 @@ int kfsw_can_set_bitrate(uint32_t bitrate)
 		/* Not open yet: keep the value for the next open. */
 		applied_bitrate = bitrate;
 		return 0;
+	}
+
+	kfsw_csp_get_info(&info);
+	if (info.router_running) {
+		return -EBUSY;
 	}
 
 	result = csp_can_stop(can_interface);
