@@ -91,6 +91,7 @@ void kfsw_can_get_info(struct kfsw_can_info *info)
 	info->address = (uint16_t)CONFIG_KFSW_CSP_ADDRESS;
 	info->prefix_length = (uint8_t)CONFIG_KFSW_CSP_CAN_PREFIX_LENGTH;
 	info->ready = true;
+	info->rx_passes = csp_can_rx_passes(can_interface);
 }
 
 int kfsw_can_set_bitrate(uint32_t bitrate)

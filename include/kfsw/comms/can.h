@@ -41,6 +41,8 @@ struct kfsw_can_info {
 	uint8_t prefix_length;
 	/** True once the controller is open and handed to libcsp. */
 	bool ready;
+	/** Wrapping idle-inclusive RX progress; freezes when the receiver stalls. */
+	uint32_t rx_passes;
 };
 
 /** Outcome of a CAN link test. */
