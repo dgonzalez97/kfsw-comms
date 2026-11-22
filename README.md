@@ -47,10 +47,11 @@ no board or peripheral names:
           CAN -> SocketCAN, for a USB adapter
 ```
 
-The bitrate can be 125k, 250k, 500k, 800k or 1M. Changing it restarts the
-controller, and every node on the bus needs the same bitrate, so change the
-other nodes as well. `kfsw_can_set_bitrate()` only reports whether the
-controller accepted the value.
+The bitrate can be 125k, 250k, 500k, 800k or 1M. Before the router starts,
+`kfsw_can_set_bitrate()` restarts an open controller at the new bitrate, or
+keeps the value for the next open. A change to an open controller while the
+router runs returns `-EBUSY` and leaves the interface and bitrate unchanged.
+Every node on the bus needs the same bitrate.
 
 The controller accepts every frame. libcsp filters by the CFP header, and a
 routing node has to see traffic for other nodes too.
