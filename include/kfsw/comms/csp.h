@@ -1,6 +1,11 @@
 #ifndef KFSW_COMMS_CSP_H
 #define KFSW_COMMS_CSP_H
 
+/**
+ * @addtogroup kfsw_comms_csp
+ * @{
+ */
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -22,6 +27,22 @@ void kfsw_csp_set_packet_trace(bool enabled);
 /** Whether packet tracing is currently on. */
 bool kfsw_csp_get_packet_trace(void);
 
+/**
+ * @brief How much the reliable transport explains itself.
+ *
+ * RDP is where a transfer stalls without saying why, so the detail is a dial
+ * rather than a switch: 0 says nothing, 1 reports the errors, 2 adds the
+ * protocol exchange, which is a line per segment and only worth it for one
+ * pass. Off by default, and not persisted: a reset returns to quiet.
+ *
+ * @retval 0 Applied.
+ * @retval -ERANGE Above 2.
+ */
+int kfsw_csp_set_rdp_trace(uint8_t level);
+
+/** The level the reliable transport is tracing at. */
+uint8_t kfsw_csp_get_rdp_trace(void);
+
 /** Local CSP identity and router state. */
 struct kfsw_csp_info {
 	uint16_t address;     /**< This node's CSP address. */
@@ -35,6 +56,38 @@ struct kfsw_csp_info {
 	uint8_t protocol;     /**< CSP protocol version on the wire, 1 or 2. */
 };
 
+/**
+ * Connection options for traffic this node originates. Signing is the whole of
+ * phase one: a peer that holds the key can tell this node's traffic apart from
+ * anybody else's, and nothing is refused yet.
+ */
+#if CONFIG_KFSW_CSP_HMAC
+#define KFSW_CSP_AUTHENTICATED_CONNECTION CSP_O_HMAC
+#else
+#define KFSW_CSP_AUTHENTICATED_CONNECTION 0U
+#endif
+
+/**
+ * Socket options for a service that changes state: commanding, remote
+ * execution, file transfer and firmware upload. Empty unless this image was
+ * built to require authentication, so the policy lives here and not spelled
+ * out in each service.
+ */
+#if CONFIG_KFSW_CSP_HMAC_REQUIRE
+/* Parameter writes are not covered. That server binds a callback rather than a
+ * socket, which is how libparam offers it, and libcsp reads the requirement
+ * from the socket. Writing a parameter reaches the recovery budget, the
+ * watchdog intervals, the routes and the limits, so an image built this way is
+ * less protected than it looks. Wrapping the radio interface is what closes
+ * it, because the question becomes which link a packet came in on rather than
+ * which service was listening.
+ */
+#warning "Requiring authentication does not cover remote parameter writes"
+#define KFSW_CSP_AUTHENTICATED_SOCKET CSP_SO_HMACREQ
+#else
+#define KFSW_CSP_AUTHENTICATED_SOCKET 0U
+#endif
+
 /** Interface configuration and counters since boot. */
 struct kfsw_csp_interface_info {
 	const char *name;         /**< Interface name, as a route table refers to it. */
@@ -47,6 +100,13 @@ struct kfsw_csp_interface_info {
 	uint32_t tx_errors;       /**< Sends the driver refused. */
 	uint32_t rx_errors;       /**< Frames that arrived malformed or too large. */
 	uint32_t dropped_packets; /**< Packets dropped for lack of a buffer or a route. */
+	/**
+	 * Packets refused by authentication on this link: a tag that did not
+	 * verify, or none where one is required. The count is per interface
+	 * because that is what it describes, a link somebody is talking on
+	 * with the wrong key or no key at all.
+	 */
+	uint32_t auth_errors;
 };
 
 /**
@@ -300,5 +360,7 @@ int kfsw_csp_identify(uint16_t node, uint32_t timeout_ms, struct kfsw_csp_identi
 #ifdef __cplusplus
 }
 #endif
+
+/** @} */
 
 #endif

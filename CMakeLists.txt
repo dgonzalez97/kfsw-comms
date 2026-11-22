@@ -24,11 +24,39 @@ if(CONFIG_KFSW_CSP)
         list(APPEND kfsw_comms_sources src/can.c)
     endif()
 
+    # The shared key is read here and compiled in. It never enters the tree,
+    # and a build that asks for authentication without a key fails rather than
+    # quietly producing an image that signs with zeroes.
+    if(CONFIG_KFSW_CSP_HMAC)
+        set(kfsw_hmac_key_file "${CONFIG_KFSW_CSP_HMAC_KEY_FILE}")
+        if(NOT EXISTS "${kfsw_hmac_key_file}")
+            message(FATAL_ERROR
+                "KFSW_CSP_HMAC is set but the key is missing: ${kfsw_hmac_key_file}"
+            )
+        endif()
+        file(READ "${kfsw_hmac_key_file}" kfsw_hmac_key_hex HEX)
+        string(LENGTH "${kfsw_hmac_key_hex}" kfsw_hmac_key_digits)
+        if(kfsw_hmac_key_digits LESS 32)
+            message(FATAL_ERROR
+                "The CSP HMAC key must hold at least 16 bytes: ${kfsw_hmac_key_file}"
+            )
+        endif()
+        string(SUBSTRING "${kfsw_hmac_key_hex}" 0 32 kfsw_hmac_key_hex)
+        string(REGEX REPLACE "(..)" "0x\\1, " kfsw_hmac_key_bytes "${kfsw_hmac_key_hex}")
+        configure_file(
+            "${CMAKE_CURRENT_LIST_DIR}/src/csp_hmac_key.h.in"
+            "${CMAKE_CURRENT_BINARY_DIR}/generated/kfsw_csp_hmac_key.h"
+            @ONLY
+        )
+    endif()
+
     add_library(kfsw_comms STATIC ${kfsw_comms_sources})
 
     target_include_directories(kfsw_comms
         PUBLIC
             ${CMAKE_CURRENT_LIST_DIR}/include
+        PRIVATE
+            ${CMAKE_CURRENT_BINARY_DIR}/generated
     )
 
     target_link_libraries(kfsw_comms

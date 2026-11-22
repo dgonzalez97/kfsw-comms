@@ -8,6 +8,17 @@ The composition pins the [K-FSW libcsp fork](https://github.com/dgonzalez97/kfsw
 at `third_party/libcsp`. Check `k-fsw/west.yml` for the revision and the fork's
 `KFSW.md` for its changes. `zephyr/module.yml` declares the Zephyr module.
 
+| Option | What it turns on |
+| --- | --- |
+| `KFSW_CSP` | The stack itself: libcsp, the static route table and the router |
+| `KFSW_CSP_KISS_UART` | KISS framing over a UART, one interface per line |
+| `KFSW_CSP_CAN` | CSP over CAN, splitting packets across frames; needs `CAN` |
+| `KFSW_CSP_HMAC` | A four-byte HMAC-SHA1 tag on what this node sends, verified on what arrives carrying one |
+| `KFSW_CSP_VERSION_1` / `_2` | The wire version: 4-byte header and 5-bit addresses, or 6-byte and 14-bit |
+
+With `KFSW_CSP=n` the local shell, parameters, persistence and logging still
+work; remote parameters, file transfer and the other network services do not.
+
 Routes select a UART/KISS or CAN interface for each destination:
 
 ```text

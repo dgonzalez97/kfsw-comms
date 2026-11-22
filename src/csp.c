@@ -5,6 +5,21 @@
 #include <string.h>
 
 #include <csp/csp.h>
+#if CONFIG_KFSW_CSP_HMAC
+#include <csp/autoconfig.h>
+#include <csp/crypto/csp_hmac.h>
+#include <kfsw_csp_hmac_key.h>
+/*
+ * Selecting the Kconfig option is not enough on its own: libcsp is built by its
+ * own CMake, and its Zephyr integration has to carry CSP_USE_HMAC across. When
+ * it does not, every signed connection fails to send with "unsupported", which
+ * on a radio reads as a dead link rather than a missing feature. That cost an
+ * afternoon once, so the pinned revision is checked here instead.
+ */
+#if !CSP_USE_HMAC
+#error "KFSW_CSP_HMAC needs a libcsp built with CSP_USE_HMAC; the pinned revision does not map it"
+#endif
+#endif
 #include <csp/csp_cmp.h>
 #include <csp/csp_debug.h>
 #include <csp/csp_hooks.h>
@@ -34,6 +49,7 @@ BUILD_ASSERT(CONFIG_KFSW_CSP_UART_PEER_ADDRESS < KFSW_CSP_BROADCAST_ADDRESS,
 #endif
 
 static bool initialized;
+static bool stack_initialized;
 static bool router_running;
 static K_MUTEX_DEFINE(lifecycle_lock);
 
@@ -159,7 +175,20 @@ int kfsw_csp_init(void)
 	csp_conf.model = CONFIG_KFSW_CSP_MODEL;
 	csp_conf.revision = revision;
 	csp_conf.version = CONFIG_KFSW_CSP_VERSION;
-	csp_init();
+	if (!stack_initialized) {
+		csp_init();
+		stack_initialized = true;
+	}
+#if CONFIG_KFSW_CSP_HMAC
+	{
+		static const uint8_t hmac_key[] = KFSW_CSP_HMAC_KEY_BYTES;
+
+		result = csp_hmac_set_key(hmac_key, sizeof(hmac_key));
+		if (result != CSP_ERR_NONE) {
+			return result;
+		}
+	}
+#endif
 	/* A disagreement here corrupts every header on the wire, so it is refused
 	   in the image that flies and not only in one built with assertions. The
 	   caller reports it; this library does not log. */
@@ -259,6 +288,7 @@ void kfsw_csp_visit_interfaces(kfsw_csp_interface_visitor_t visitor, void *conte
 			.tx_errors = interface->tx_error,
 			.rx_errors = interface->rx_error,
 			.dropped_packets = interface->drop,
+			.auth_errors = interface->autherr,
 		};
 
 		if (!visitor(&info, context)) {
@@ -377,6 +407,20 @@ void kfsw_csp_set_packet_trace(bool enabled)
 bool kfsw_csp_get_packet_trace(void)
 {
 	return csp_dbg_packet_print != 0U;
+}
+
+int kfsw_csp_set_rdp_trace(uint8_t level)
+{
+	if (level > 2U) {
+		return -ERANGE;
+	}
+	csp_dbg_rdp_print = level;
+	return 0;
+}
+
+uint8_t kfsw_csp_get_rdp_trace(void)
+{
+	return csp_dbg_rdp_print;
 }
 
 void kfsw_csp_get_counters(struct kfsw_csp_counters *counters)
@@ -664,7 +708,8 @@ int kfsw_csp_ping(uint16_t node, uint32_t timeout_ms, size_t payload_size, uint3
 	*round_trip_us = 0;
 	/* libcsp counts in system ticks, 10 ms on native_sim; time it here instead. */
 	start_us = kfsw_time_monotonic_us();
-	elapsed_ms = csp_ping(node, timeout_ms, (unsigned int)payload_size, CSP_O_CRC32);
+	elapsed_ms = csp_ping(node, timeout_ms, (unsigned int)payload_size,
+			      (CSP_O_CRC32 | KFSW_CSP_AUTHENTICATED_CONNECTION));
 	if (elapsed_ms < 0) {
 		return CSP_ERR_TIMEDOUT;
 	}

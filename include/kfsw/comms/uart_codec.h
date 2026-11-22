@@ -1,6 +1,11 @@
 #ifndef KFSW_COMMS_UART_CODEC_H
 #define KFSW_COMMS_UART_CODEC_H
 
+/**
+ * @addtogroup kfsw_comms_uart
+ * @{
+ */
+
 #include <csp/csp_interface.h>
 
 /** Optional packet protection for one named KISS interface. */
@@ -16,5 +21,7 @@ int kfsw_uart_codec_register(const char *interface_name, const struct kfsw_uart_
 
 /** Send a codec control payload directly on its bound interface. Thread context only. */
 int kfsw_uart_codec_control(uint16_t peer, const uint8_t *data, size_t size);
+
+/** @} */
 
 #endif
