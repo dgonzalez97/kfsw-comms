@@ -33,6 +33,7 @@ struct kfsw_uart_config {
 struct kfsw_uart_context {
 	const struct kfsw_uart_config *config;
 	csp_iface_t *interface;
+	bool receiver_opened;
 #if CONFIG_KFSW_CSP_UART_INTERRUPT_DRIVEN
 	csp_iface_t interrupt_interface;
 	csp_kiss_interface_data_t kiss_data;
@@ -290,6 +291,7 @@ int kfsw_uart_open_all(void)
 		if (open_result != CSP_ERR_NONE) {
 			return open_result;
 		}
+		uart_contexts[i].receiver_opened = true;
 #if CONFIG_KFSW_CSP_UART_CODEC
 		open_result = kfsw_uart_codec_attach(uart_contexts[i].interface);
 		if (open_result != 0) {
@@ -318,6 +320,12 @@ static void get_info_at(size_t index, struct kfsw_uart_info *info)
 	info->baudrate = config->serial.baudrate;
 	info->ready = device_is_ready(config->device) && interface != NULL;
 	info->interface_started = interface != NULL;
+	info->receiver_opened = uart_contexts[index].receiver_opened;
+#if !CONFIG_KFSW_CSP_UART_INTERRUPT_DRIVEN
+	if (info->receiver_opened) {
+		info->rx_passes = csp_usart_rx_passes(config->device);
+	}
+#endif
 	info->interface_name = interface != NULL ? interface->name : config->interface_name;
 	info->node = config->address;
 	info->prefix_length = config->prefix_length;

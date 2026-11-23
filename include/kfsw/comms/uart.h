@@ -18,6 +18,12 @@ struct kfsw_uart_info {
 	uint32_t baudrate;
 	bool ready;
 	bool interface_started;
+	/** Receiver opened successfully, independently of codec-worker health. */
+	bool receiver_opened;
+	/** Idle-inclusive wrapping progress; freezes on a stalled polling receiver.
+	 * Zero before open or for interrupt-driven RX.
+	 */
+	uint32_t rx_passes;
 	const char *interface_name;
 	uint16_t node;
 	uint16_t prefix_length;
